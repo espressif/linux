@@ -79,7 +79,6 @@ static struct irq_chip esp_intmtx_chip = {
 	.name		= "esp-intmtx",
 	.irq_mask	= irq_chip_mask_parent,
 	.irq_unmask	= irq_chip_unmask_parent,
-	.irq_eoi	= irq_chip_eoi_parent,
 	.irq_set_type	= irq_chip_set_type_parent,
 	.flags		= IRQCHIP_SKIP_SET_WAKE,
 };
