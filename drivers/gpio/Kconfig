@@ -285,6 +285,19 @@ config GPIO_EIC_SPRD
 	help
 	  Say yes here to support Spreadtrum EIC device.
 
+config GPIO_ESP
+	tristate "Espressif ESP32-S31 GPIO controller"
+	depends on OF_GPIO
+	depends on PINCTRL_ESP
+	depends on ARCH_ESPRESSIF || COMPILE_TEST
+	select GPIOLIB_IRQCHIP
+	select REGMAP_MMIO
+	help
+	  Say Y or M here to support the GPIO controller on the Espressif
+	  ESP32-S31, including per-pad interrupts. Pad muxing and pad
+	  configuration are handled by PINCTRL_ESP, which this driver defers
+	  to through the gpio-ranges in the device tree.
+
 config GPIO_EM
 	tristate "Emma Mobile GPIO"
 	depends on (ARCH_EMEV2 || COMPILE_TEST) && OF_GPIO
