@@ -531,8 +531,10 @@
  *
  * MCU_SEL values. Function 1 is the GPIO matrix on every pad, so a peripheral
  * that is not a pad's dedicated function is reached through the crossbar.
+ * Function 2 is the pad's dedicated peripheral function, which differs per pad.
  */
 #define GPIO_FUNC_GPIO					1
+#define GPIO_FUNC_GMAC					2
 
 /*
  * pinmux binding: one cell per pad, pairing the pad with a function id from
@@ -551,5 +553,10 @@
 #define ESP_FUNC_S31_I2C0_SDA_ID			1
 #define ESP_FUNC_S31_I2C1_SCL_ID			2
 #define ESP_FUNC_S31_I2C1_SDA_ID			3
+/* RGMII: the twelve data and clock pads take their dedicated function. */
+#define ESP_FUNC_S31_GMAC_ID				4
+/* MDIO is not a dedicated pad function, so it routes through the matrix. */
+#define ESP_FUNC_S31_GMII_MDC_ID			5
+#define ESP_FUNC_S31_GMII_MDIO_ID			6
 
 #endif /* ESP32S31_IOMUX_H */

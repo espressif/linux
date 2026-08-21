@@ -51,6 +51,7 @@ enum esp_regmap_id {
 	ESP_REGMAP_MUX = 0,	/* iomux */
 	ESP_REGMAP_MATRIX,	/* gpio matrix */
 	ESP_REGMAP_USB_JTAG,	/* USB-Serial/JTAG, a syscon */
+	ESP_REGMAP_CNNT,	/* s31: CNNT IO MUX (dedicated GMAC/SDIO pads) */
 	ESP_REGMAP_MAX,
 };
 
@@ -90,21 +91,31 @@ struct esp_pin_function {
 	s16	top_mux;	/* primary direct-mux selector (ESP_FIELD_FUNC) */
 	s16	matrix_in;	/* GPIO-matrix input signal, or -1 */
 	s16	matrix_out;	/* GPIO-matrix output signal, or -1 */
+	u8	owner;		/* ESP_OWNER(i) for esp_pinctrl_soc.owners[i], 0: none */
 };
 
 #define ESP_FUNC_NONE			(-1)
+#define ESP_OWNER(i)			((i) + 1)
 
 /*
- * struct esp_pad_claim - pads another block holds while @mask is set in its
- * register @reg, reached through syscon region @map. Selecting any IO_MUX
- * function on one of them clears @mask first.
+ * struct esp_pad_owner - a block outside the IO_MUX that holds the pads
+ * first_pin..last_pin while @mask is set in its register @reg, reached through
+ * region @map (MMIO or syscon). The core clears the bit before it muxes one of
+ * those pads to anything else, and sets it when it applies a function whose
+ * .owner names this block. @mask is per block, not per pad: releasing one pad
+ * releases them all.
+ *
+ * @layers, if set, is where the pads' electrical config lives while the block
+ * holds them (e.g. the CNNT pad registers). Without it the pads are simply
+ * unusable until released, as GPIO33/34 are while USB-Serial/JTAG has them.
  */
-struct esp_pad_claim {
-	unsigned int		first_pin;
-	unsigned int		last_pin;
-	enum esp_regmap_id	map;
-	u32			reg;
-	u32			mask;
+struct esp_pad_owner {
+	unsigned int			first_pin;
+	unsigned int			last_pin;
+	enum esp_regmap_id		map;
+	u32				reg;
+	u32				mask;
+	const struct esp_mux_layer	*layers;	/* by enum esp_pin_field */
 };
 
 #define ESP_DRV_LEVELS_MAX		4
@@ -130,6 +141,10 @@ struct esp_pinctrl_soc {
 	const unsigned int		*drv_mA;
 	unsigned int			ndrv_levels;
 
+	/* Blocks that can hold pads away from the IO_MUX; empty if none. */
+	const struct esp_pad_owner	*owners;
+	unsigned int			nowners;
+
 	/* Matrix routing (SoC-specific). */
 	int  (*matrix_set_in)(struct esp_pinctrl *epctl, u32 gpio, u32 signal);
 	int  (*matrix_set_out)(struct esp_pinctrl *epctl, u32 gpio, u32 signal);
@@ -141,9 +156,6 @@ struct esp_pinctrl_soc {
 	 * this instead, to select the matrix and route the pad's output.
 	 */
 	int  (*gpio_request)(struct esp_pinctrl *epctl, unsigned int pin);
-
-	const struct esp_pad_claim	*pad_claims;
-	unsigned int			npad_claims;
 };
 
 struct esp_pinctrl {
