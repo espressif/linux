@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: GPL-2.0
+#
+# PHY drivers for Espressif platforms
+#
+
+config PHY_ESP32S31_USB
+	bool "Espressif ESP32-S31 USB 2.0 PHY driver"
+	depends on OF && HAS_IOMEM
+	depends on ARCH_ESPRESSIF || COMPILE_TEST
+	select GENERIC_PHY
+	select MFD_SYSCON
+	help
+	  Enable this to support the USB 2.0 OTG-HS PHY on the Espressif ESP32-S31.
