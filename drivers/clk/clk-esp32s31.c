@@ -20,9 +20,14 @@
 #include <dt-bindings/clock/esp32s31.h>
 
 /* Peripheral control registers in HP_SYS_CLKRST */
-#define ESP32S31_HP_CLKRST_IOMUX_CTRL0	0x15c
+#define ESP32S31_HP_CLKRST_EMAC_CTRL0	0x0c8
 #define ESP32S31_HP_CLKRST_I2C0_CTRL0	0x0dc
 #define ESP32S31_HP_CLKRST_I2C1_CTRL0	0x0e0
+#define ESP32S31_HP_CLKRST_IOMUX_CTRL0	0x15c
+
+/* Peripheral control registers in CNNT_SYS */
+#define ESP32S31_CNNT_HP_EMAC_REF_CTRL	0x040
+#define ESP32S31_CNNT_HP_EMAC_PTP_CTRL	0x054
 
 /*
  * Field layout shared by the IO_MUX and both I2C control registers, and named
@@ -35,10 +40,41 @@
 #define ESP32S31_IOMUX_I2C_CLK_DIV_NUM		GENMASK(12, 5)
 #define ESP32S31_I2C_CLK_DIV_FRAC		GENMASK(28, 13)
 
+/* EMAC_CTRL0 and HP_EMAC_REF_CTRL, which share neither layout */
+#define ESP32S31_EMAC_SYS_CLK_EN	BIT(0)
+#define ESP32S31_EMAC_REF_CLK_SEL	GENMASK(1, 0)
+#define ESP32S31_EMAC_REF_CLK_EN	BIT(2)
+#define ESP32S31_EMAC_REF_CLK_DIV	GENMASK(15, 8)
+
+/*
+ * HP_EMAC_PTP_CTRL. Bit 1 selects the PTP reference source (0 = xtal,
+ * 1 = 80 MHz internal); only xtal is modelled, so the select stays at its
+ * reset default and the mux is not described.
+ */
+#define ESP32S31_EMAC_PTP_REF_CLK_EN	BIT(0)
+
+/* HP_SYS_CLKRST USB_OTGHS_CTRL0 */
+#define ESP32S31_HP_CLKRST_USB_OTGHS_CTRL0	0x0ac
+#define ESP32S31_USB_OTGHS_APB_CLK_EN		BIT(0)
+#define ESP32S31_USB_OTGHS_SYS_CLK_EN		BIT(1)
+
+/* CNNT_SYS USB_OTG20_CTRL */
+#define ESP32S31_CNNT_USB_OTG20_CTRL		0x030
+#define ESP32S31_USB_OTG20_PHYREF_CLK_EN	BIT(27)
+
+/*
+ * Register windows, indexing the local regmap array. HP_SYS_CLKRST comes from
+ * the parent syscon and CNNT_SYS from the esp,cnnt-sys phandle.
+ */
+#define ESP32S31_CLK_MAP_HP_SYS_CLKRST	0
+#define ESP32S31_CLK_MAP_CNNT_SYS	1
+#define ESP32S31_CLK_NUM_MAPS		2
+
 #define ESP32S31_CLK_MAX_PARENTS	2
 
 struct esp_clk_desc {
 	const char *name;
+	u8 map_idx;
 	u32 reg;
 	u32 gate;
 	u32 div;
@@ -190,6 +226,11 @@ static const struct clk_ops esp_clk_ops_mux_gate_div = {
  * Currently the value is 2.
  */
 static const char * const esp32s31_i2c_parents[] = { "xtal", "fosc" };
+static const char * const esp32s31_emac_sys_parents[] = { "xtal" };
+static const char * const esp32s31_emac_ref_parents[] = { "mpll" };
+static const char * const esp32s31_emac_ptp_parents[] = { "xtal" };
+static const char * const esp32s31_usb_otghs_bus_parents[] = { "xtal" };
+static const char * const esp32s31_usb_otghs_phyref_parents[] = { "xtal" };
 
 static const struct esp_clk_desc esp32s31_clk_descs[ESP_S31_CLK_NUM] = {
 	[ESP_S31_CLK_IOMUX_APB] = {
@@ -236,6 +277,47 @@ static const struct esp_clk_desc esp32s31_clk_descs[ESP_S31_CLK_NUM] = {
 		.parents = esp32s31_i2c_parents,
 		.num_parents = ARRAY_SIZE(esp32s31_i2c_parents),
 	},
+	[ESP_S31_CLK_EMAC_SYS] = {
+		.name = "emac_sys",
+		.reg = ESP32S31_HP_CLKRST_EMAC_CTRL0,
+		.gate = ESP32S31_EMAC_SYS_CLK_EN,
+		.parents = esp32s31_emac_sys_parents,
+		.num_parents = ARRAY_SIZE(esp32s31_emac_sys_parents),
+	},
+	[ESP_S31_CLK_EMAC_REF] = {
+		.name = "emac_ref",
+		.map_idx = ESP32S31_CLK_MAP_CNNT_SYS,
+		.reg = ESP32S31_CNNT_HP_EMAC_REF_CTRL,
+		.gate = ESP32S31_EMAC_REF_CLK_EN,
+		.div = ESP32S31_EMAC_REF_CLK_DIV,
+		.mux = ESP32S31_EMAC_REF_CLK_SEL,
+		.parents = esp32s31_emac_ref_parents,
+		.num_parents = ARRAY_SIZE(esp32s31_emac_ref_parents),
+	},
+	[ESP_S31_CLK_USB_OTGHS_BUS] = {
+		.name = "usb_otghs_bus",
+		.reg = ESP32S31_HP_CLKRST_USB_OTGHS_CTRL0,
+		.gate = ESP32S31_USB_OTGHS_APB_CLK_EN |
+			ESP32S31_USB_OTGHS_SYS_CLK_EN,
+		.parents = esp32s31_usb_otghs_bus_parents,
+		.num_parents = ARRAY_SIZE(esp32s31_usb_otghs_bus_parents),
+	},
+	[ESP_S31_CLK_USB_OTGHS_PHYREF] = {
+		.name = "usb_otghs_phyref",
+		.map_idx = ESP32S31_CLK_MAP_CNNT_SYS,
+		.reg = ESP32S31_CNNT_USB_OTG20_CTRL,
+		.gate = ESP32S31_USB_OTG20_PHYREF_CLK_EN,
+		.parents = esp32s31_usb_otghs_phyref_parents,
+		.num_parents = ARRAY_SIZE(esp32s31_usb_otghs_phyref_parents),
+	},
+	[ESP_S31_CLK_EMAC_PTP] = {
+		.name = "emac_ptp",
+		.map_idx = ESP32S31_CLK_MAP_CNNT_SYS,
+		.reg = ESP32S31_CNNT_HP_EMAC_PTP_CTRL,
+		.gate = ESP32S31_EMAC_PTP_REF_CLK_EN,
+		.parents = esp32s31_emac_ptp_parents,
+		.num_parents = ARRAY_SIZE(esp32s31_emac_ptp_parents),
+	},
 };
 
 static const struct clk_ops *esp_clk_pick_ops(const struct esp_clk_desc *d)
@@ -254,6 +336,7 @@ static int esp_clk_probe(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	const struct esp_clk_desc *descs;
 	struct clk_hw_onecell_data *clk_data;
+	struct regmap *maps[ESP32S31_CLK_NUM_MAPS];
 	struct regmap *map;
 	unsigned int i, j;
 	int ret;
@@ -266,6 +349,14 @@ static int esp_clk_probe(struct platform_device *pdev)
 	if (IS_ERR(map))
 		return dev_err_probe(dev, PTR_ERR(map),
 				     "failed to get parent syscon regmap\n");
+	maps[ESP32S31_CLK_MAP_HP_SYS_CLKRST] = map;
+
+	map = syscon_regmap_lookup_by_phandle(dev->of_node,
+					      "esp,cnnt-sys");
+	if (IS_ERR(map))
+		return dev_err_probe(dev, PTR_ERR(map),
+				     "failed to get cnnt-sys regmap\n");
+	maps[ESP32S31_CLK_MAP_CNNT_SYS] = map;
 
 	clk_data = devm_kzalloc(dev, struct_size(clk_data, hws, ESP_S31_CLK_NUM),
 				GFP_KERNEL);
@@ -283,7 +374,7 @@ static int esp_clk_probe(struct platform_device *pdev)
 		if (!c)
 			return -ENOMEM;
 
-		c->map = map;
+		c->map = maps[d->map_idx];
 		c->desc = d;
 
 		for (j = 0; j < d->num_parents; j++)
