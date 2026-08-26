@@ -12,7 +12,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 
 / {
-	compatible = "espressif,esp32s31";
+	compatible = "esp,esp32s31";
 	#address-cells = <1>;
 	#size-cells = <1>;
 	model = "Espressif ESP32-S31 (minimal)";
@@ -67,7 +67,7 @@
 		ranges;
 
 		clic: interrupt-controller@10a00000 {
-			compatible = "espressif,esp32s31-clic";
+			compatible = "esp,esp32s31-clic";
 			reg = <0x10a00000 0x2000>;
 			interrupt-controller;
 			#interrupt-cells = <2>;
@@ -75,7 +75,7 @@
 		};
 
 		intmtx: interrupt-controller@20585000 {
-			compatible = "espressif,esp32s31-intmtx";
+			compatible = "esp,esp32s31-intmtx";
 			reg = <0x20585000 0x800>;
 			interrupt-controller;
 			#interrupt-cells = <2>;
@@ -93,7 +93,7 @@
 		};
 
 		systimer: timer@20399000 {
-			compatible = "espressif,esp32s31-systimer";
+			compatible = "esp,esp32s31-systimer";
 			reg = <0x20399000 0x100>;
 			clock-frequency = <16000000>;
 			interrupt-parent = <&intmtx>;

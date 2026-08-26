@@ -191,4 +191,4 @@ static int __init systimer_init(struct device_node *np)
 	return 0;
 }
 
-TIMER_OF_DECLARE(esp32s31_systimer, "espressif,esp32s31-systimer", systimer_init);
+TIMER_OF_DECLARE(esp32s31_systimer, "esp,esp32s31-systimer", systimer_init);

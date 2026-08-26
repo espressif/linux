@@ -233,4 +233,4 @@ static int __init esp_intmtx_init(struct device_node *node,
 	return 0;
 }
 
-IRQCHIP_DECLARE(esp32s31_intmtx, "espressif,esp32s31-intmtx", esp_intmtx_init);
+IRQCHIP_DECLARE(esp32s31_intmtx, "esp,esp32s31-intmtx", esp_intmtx_init);
