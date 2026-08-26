@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config PINCTRL_ESP
+	tristate "Espressif pinctrl driver"
+	depends on OF
+	depends on ARCH_ESPRESSIF || COMPILE_TEST
+	select GENERIC_PINCONF
+	select GENERIC_PINCTRL_GROUPS
+	select GENERIC_PINMUX_FUNCTIONS
+	select MFD_SYSCON
+	help
+	  Say Y here to enable pin multiplexing and pin configuration for
+	  Espressif SoCs, currently the ESP32-S31. This covers both the per-pad
+	  IO_MUX registers, which select a pad's function and its input buffer,
+	  pulls and drive strength, and the GPIO matrix, a crossbar that routes
+	  any peripheral signal to any pad. GPIO_ESP depends on this driver to
+	  claim lines.
