@@ -9,7 +9,10 @@
 
 /dts-v1/;
 
+#include <dt-bindings/clock/esp32s31.h>
 #include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/pinctrl/esp32s31-iomux.h>
+#include <dt-bindings/reset/esp32s31.h>
 
 / {
 	compatible = "esp,esp32s31";
@@ -18,6 +21,7 @@
 	model = "Espressif ESP32-S31 (minimal)";
 
 	aliases {
+		i2c0 = &i2c0;
 		serial0 = &uart0;
 	};
 
@@ -90,6 +94,109 @@
 			interrupt-parent = <&intmtx>;
 			interrupts = <9 IRQ_TYPE_LEVEL_HIGH>;
 			status = "okay";
+		};
+
+		/*
+		 * USB-Serial/JTAG. A syscon because its PHY configuration register
+		 * also holds the GPIO33/34 pad enable, which pinctrl clears.
+		 */
+		usb_jtag: syscon@20391000 {
+			compatible = "esp,esp32s31-usb-serial-jtag", "syscon";
+			reg = <0x20391000 0x1000>;
+		};
+
+		pinctrl: pinctrl@20582000 {
+			compatible = "esp,esp32s31-pinctrl";
+			reg = <0x20582000 0x100>,
+			      <0x20583000 0xe00>;
+			reg-names = "iomux", "matrix";
+			esp,usb-jtag = <&usb_jtag>;
+			clocks = <&clk ESP_S31_CLK_IOMUX_APB>,
+				 <&clk ESP_S31_CLK_IOMUX>;
+			clock-names = "apb", "iomux";
+			resets = <&rst ESP_S31_RST_IOMUX>;
+
+			espfunc: espfunc {
+				/*
+				 * I2C Pins - SDA(GPIO51) and SCL(GPIO50) according to
+				 * ESP32S31 Core FunctionBoard v1.1 schematic.
+				 */
+				i2c0_pins: i2c0-pins {
+					pinmux =
+						<ESP_PINMUX(51, ESP_FUNC_S31_I2C0_SDA_ID)>,
+						<ESP_PINMUX(50, ESP_FUNC_S31_I2C0_SCL_ID)>;
+
+					input-enable;
+					bias-pull-up;
+					drive-strength = <5>;
+					drive-open-drain;
+				};
+			};
+		};
+
+		gpio: gpio@20583000 {
+			compatible = "esp,esp32s31-gpio";
+			reg = <0x20583000 0xe00>;
+			reg-names = "gpio";
+			#gpio-cells = <2>;
+			gpio-controller;
+			ngpios = <62>;
+			/*
+			 * Pad settings live in the IO_MUX window, so claiming a
+			 * line has to reach pinctrl -- without this range,
+			 * setting a line to input returns -EPROBE_DEFER.
+			 */
+			gpio-ranges = <&pinctrl 0 0 62>;
+			interrupt-controller;
+			#interrupt-cells = <2>;
+			interrupt-parent = <&intmtx>;
+			/* ETS_GPIO_INTR0..1_SOURCE = 61..62, one per bank */
+			interrupts = <61 IRQ_TYPE_LEVEL_HIGH>,
+				     <62 IRQ_TYPE_LEVEL_HIGH>;
+		};
+
+		/*
+		 * HP_SYS_CLKRST. Peripheral clock gates and resets that sit
+		 * outside the peripherals' own register windows.
+		 */
+		sysctl: syscon@20587000 {
+			compatible = "esp,esp32s31-clkrst", "syscon",
+				     "simple-mfd";
+			reg = <0x20587000 0x400>;
+
+			/*
+			 * Register-less children: both providers reach their
+			 * bits through this parent node's window.
+			 */
+			clk: clock-controller {
+				compatible = "esp,esp32s31-clk";
+				#clock-cells = <1>;
+				clocks = <&xtal_clk>;
+				clock-names = "xtal";
+			};
+
+			rst: reset-controller {
+				compatible = "esp,esp32s31-reset";
+				#reset-cells = <1>;
+			};
+		};
+
+		i2c0: i2c@20385000 {
+			compatible = "esp,esp32s31-i2c";
+			reg = <0x20385000 0x1000>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			interrupt-parent = <&intmtx>;
+			interrupts = <23 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&clk ESP_S31_CLK_I2C0_APB>,
+				 <&clk ESP_S31_CLK_I2C0>;
+			clock-names = "apb", "core";
+			assigned-clocks = <&clk ESP_S31_CLK_I2C0>;
+			assigned-clock-parents = <&xtal_clk>;
+			resets = <&rst ESP_S31_RST_I2C0>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&i2c0_pins>;
+			clock-frequency = <100000>;
 		};
 
 		systimer: timer@20399000 {
