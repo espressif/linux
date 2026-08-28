@@ -1157,9 +1157,10 @@ asmlinkage void __init setup_vm(uintptr_t dtb_pa)
 	 * physical addresses (if the start of dram is different from the
 	 * kernel physical address start).
 	 */
-	if (IS_ENABLED(CONFIG_64BIT))
+	if (IS_ENABLED(CONFIG_64BIT)) {
 		kernel_map.va_pa_offset = 0UL;
-	else if (IS_ENABLED(CONFIG_XIP_KERNEL))
+#ifdef CONFIG_XIP_KERNEL
+	} else {
 		/*
 		 * rv32 XIP: align the linear map so it starts at _sdata's
 		 * VMA.  With _sdata PGDIR_SIZE-aligned this puts PSRAM's
@@ -1169,8 +1170,11 @@ asmlinkage void __init setup_vm(uintptr_t dtb_pa)
 		 */
 		kernel_map.va_pa_offset =
 				kernel_map.va_kernel_xip_data_pa_offset;
-	else
+#else
+	} else {
 		kernel_map.va_pa_offset = PAGE_OFFSET - kernel_map.phys_addr;
+#endif
+	}
 
 	memory_limit = KERN_VIRT_SIZE;
 
