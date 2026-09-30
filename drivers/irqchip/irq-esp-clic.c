@@ -228,4 +228,4 @@ static int __init esp_clic_init(struct device_node *node,
 	return 0;
 }
 
-IRQCHIP_DECLARE(esp32s31_clic, "espressif,esp32s31-clic", esp_clic_init);
+IRQCHIP_DECLARE(esp32s31_clic, "esp,esp32s31-clic", esp_clic_init);

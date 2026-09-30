@@ -677,6 +677,22 @@ config I2C_EMEV2
 	  If you say yes to this option, support will be included for the
 	  I2C interface on the Renesas Electronics EM/EV family of processors.
 
+config I2C_ESPRESSIF
+	tristate "Espressif ESP32-S31 I2C master controller"
+	depends on ARCH_ESPRESSIF || COMPILE_TEST
+	depends on OF
+	depends on MFD_SYSCON
+	help
+	  Say Y here to include support for the I2C master controller found
+	  in the Espressif ESP32-S31.
+
+	  The controller supports standard mode (100kHz) and fast mode
+	  (400kHz) with hardware command-based transfers and 32-byte
+	  TX/RX FIFOs.
+
+	  This driver can also be built as a module. If so, the module
+	  will be called i2c-esp32s31.
+
 config I2C_EXYNOS5
 	tristate "Exynos high-speed I2C driver"
 	depends on OF
