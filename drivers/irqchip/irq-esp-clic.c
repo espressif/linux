@@ -1,29 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
  * Espressif ESP32-S31 CLIC irqchip — S-mode view of the chip's CLIC.
- *
- * The S31 has a Core-Local Interrupt Controller plus an INTMTX
- * peripheral routing matrix. OpenSBI delegates the external CLIC
- * sources (IDs 16-47) to S-mode at boot (clicintattr.mode = 01),
- * then this driver drives enable/mask/priority/trigger via the CLIC
- * Supervisor bank mapped at 0x10A00000.
- *
- * Why not hierarchical with riscv-intc?
- *   riscv-intc's domain_map tags every IRQ as percpu_devid and uses
- *   handle_percpu_devid_irq, which is right for the timer/IPI and
- *   wrong for a peripheral (request_irq() WARNs and returns -EINVAL
- *   on percpu_devid IRQs). PLIC sidesteps this by hanging itself off
- *   intc as a chained handler on the S-external IRQ; CLIC has no
- *   single "claim" pin, each source is its own scause exccode, so we
- *   install one chained handler per CLIC slot we actually use.
- *
- * INTMTX (peripheral source -> CLIC slot routing) is a hierarchical
- * child of this domain. Peripherals reference INTMTX in DT;
- * INTMTX.alloc forwards to clic.alloc with the chosen slot.
- *
- * All external slots 16-47 are usable.  The riscv-intc parent exposes
- * causes 0-31 as standard interrupts and 32-47 as an ESP32-S31 custom
- * range; this irqchip controls their memory-mapped state.
  */
 
 #include <linux/io.h>
@@ -33,8 +10,8 @@
 #include <linux/irqdomain.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
-#include <linux/of_irq.h>
 #include <linux/slab.h>
+#include <linux/smp.h>
 
 /* Supervisor bank per-source byte layout (mirror of M-bank in OpenSBI):
  *   +0 clicintip   pending bit
@@ -63,6 +40,10 @@ struct esp_clic {
 	struct irq_domain	*domain;
 	struct irq_domain	*parent_domain;
 	unsigned int		intc_virqs[CLIC_EXT_COUNT];
+#ifdef CONFIG_SMP
+	/* The peer core's bank, through this core's Other aperture. */
+	void __iomem		*peer_base;
+#endif
 };
 
 static struct esp_clic *clic;
@@ -72,26 +53,55 @@ static inline unsigned int slot_to_idx(unsigned int slot)
 	return slot - CLIC_EXT_FIRST;
 }
 
+static void __iomem *esp_clic_bank_for(struct esp_clic *priv, unsigned int cpu)
+{
+#ifdef CONFIG_SMP
+	if (cpu != raw_smp_processor_id())
+		return priv->peer_base;
+#endif
+	return priv->base;
+}
+
+static unsigned int esp_clic_target_cpu(struct irq_data *d)
+{
+	return cpumask_first(irq_data_get_effective_affinity_mask(d));
+}
+
+/*
+ * Called with the irq descriptor lock held and interrupts off, so the bank
+ * resolved for the irq's current target CPU cannot go stale before the
+ * write below.
+ */
+static void esp_clic_set_ie(struct irq_data *d, bool enable)
+{
+	void __iomem *bank = esp_clic_bank_for(clic, esp_clic_target_cpu(d));
+
+	writeb_relaxed(enable ? 1 : 0, bank + CLIC_INTIE_OFF(d->hwirq));
+}
+
 static void esp_clic_mask(struct irq_data *d)
 {
-	writeb_relaxed(0, clic->base + CLIC_INTIE_OFF(d->hwirq));
+	esp_clic_set_ie(d, false);
 }
 
 static void esp_clic_unmask(struct irq_data *d)
 {
-	writeb_relaxed(1, clic->base + CLIC_INTIE_OFF(d->hwirq));
+	esp_clic_set_ie(d, true);
 }
 
+/* Same locking guarantee as esp_clic_set_ie() above. */
 static int esp_clic_set_type(struct irq_data *d, unsigned int type)
 {
+	void __iomem *bank;
 	u8 attr;
 
 	if (type != IRQ_TYPE_LEVEL_HIGH)
 		return -EINVAL;
 
-	attr = readb_relaxed(clic->base + CLIC_INTATTR_OFF(d->hwirq));
+	bank = esp_clic_bank_for(clic, esp_clic_target_cpu(d));
+	attr = readb_relaxed(bank + CLIC_INTATTR_OFF(d->hwirq));
 	attr = (attr & ~CLIC_ATTR_TRIG_MASK) | CLIC_ATTR_TRIG_LEVEL;
-	writeb_relaxed(attr, clic->base + CLIC_INTATTR_OFF(d->hwirq));
+	writeb_relaxed(attr, bank + CLIC_INTATTR_OFF(d->hwirq));
 	irq_set_handler_locked(d, handle_level_irq);
 	return 0;
 }
@@ -157,14 +167,24 @@ static int esp_clic_domain_alloc(struct irq_domain *domain, unsigned int virq,
 
 	for (i = 0; i < nr_irqs; i++) {
 		irq_hw_number_t src = hwirq + i;
+		void __iomem *bank;
 
-		/* clear any pending bit latched by ROM/OpenSBI before this slot
+		/* Set the effective affinity to CPU0 by default */
+		irq_data_update_effective_affinity(irq_get_irq_data(virq + i),
+						   cpumask_of(0));
+
+		/* Preemption off so the Self/Other choice cannot go stale. */
+		preempt_disable();
+		bank = esp_clic_bank_for(priv, 0);
+
+		/*
+		 * Clear any pending bit latched by ROM/OpenSBI before this slot
 		 * gets a handler, so the first unmask doesn't take a spurious
 		 * interrupt.
 		 */
-		writeb_relaxed(0, priv->base + CLIC_INTIP_OFF(src));
-		writeb_relaxed(CLIC_CTL_MAX_PRIO,
-			       priv->base + CLIC_INTCTL_OFF(src));
+		writeb_relaxed(0, bank + CLIC_INTIP_OFF(src));
+		writeb_relaxed(CLIC_CTL_MAX_PRIO, bank + CLIC_INTCTL_OFF(src));
+		preempt_enable();
 
 		irq_domain_set_info(domain, virq + i, src, &esp_clic_chip,
 				    priv, handle_level_irq, NULL, NULL);
@@ -188,6 +208,7 @@ static int __init esp_clic_init(struct device_node *node,
 {
 	struct irq_domain *parent_domain, *domain;
 	struct esp_clic *priv;
+	int ret;
 
 	if (clic) {
 		pr_err("esp-clic: already initialised\n");
@@ -207,18 +228,26 @@ static int __init esp_clic_init(struct device_node *node,
 	priv->base = of_iomap(node, 0);
 	if (!priv->base) {
 		pr_err("esp-clic: %pOF: failed to map regs\n", node);
-		kfree(priv);
-		return -ENXIO;
+		ret = -ENXIO;
+		goto err_free;
 	}
 	priv->parent_domain = parent_domain;
+
+#ifdef CONFIG_SMP
+	priv->peer_base = of_iomap(node, 1);
+	if (!priv->peer_base && num_possible_cpus() > 1) {
+		pr_err("esp-clic: %pOF: failed to map peer bank (reg 1)\n", node);
+		ret = -ENXIO;
+		goto err_unmap;
+	}
+#endif
 
 	domain = irq_domain_create_linear(of_fwnode_handle(node),
 					  CLIC_EXT_LAST + 1,
 					  &esp_clic_domain_ops, priv);
 	if (!domain) {
-		iounmap(priv->base);
-		kfree(priv);
-		return -ENOMEM;
+		ret = -ENOMEM;
+		goto err_unmap;
 	}
 
 	priv->domain = domain;
@@ -227,6 +256,16 @@ static int __init esp_clic_init(struct device_node *node,
 	pr_info("esp-clic: %u external slots (IDs %u-%u), chained on %pOF\n",
 		CLIC_EXT_COUNT, CLIC_EXT_FIRST, CLIC_EXT_LAST, parent);
 	return 0;
+
+err_unmap:
+#ifdef CONFIG_SMP
+	if (priv->peer_base)
+		iounmap(priv->peer_base);
+#endif
+	iounmap(priv->base);
+err_free:
+	kfree(priv);
+	return ret;
 }
 
 IRQCHIP_DECLARE(esp32s31_clic, "esp,esp32s31-clic", esp_clic_init);

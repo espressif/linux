@@ -85,7 +85,7 @@
 
 		clic: interrupt-controller@10a00000 {
 			compatible = "esp,esp32s31-clic";
-			reg = <0x10a00000 0x2000>;
+			reg = <0x10a00000 0x2000>, <0x10a10000 0x2000>; /* self, other-core */
 			interrupt-controller;
 			#interrupt-cells = <2>;
 			interrupt-parent = <&cpu0_intc>;
