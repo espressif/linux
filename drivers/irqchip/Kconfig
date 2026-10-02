@@ -682,6 +682,14 @@ config ESP_INTMTX
 
 	  If unsure, say N.
 
+config ESP_IPI
+	bool "Espressif ESP32-S31 inter-processor interrupts"
+	depends on ESP_INTMTX && SMP
+	select GENERIC_IRQ_IPI_MUX
+	help
+	  Enabled support for inux IPIs on Espressif's "CPU interrupt from CPU"
+	  doorbells.
+
 config ACLINT_SSWI
 	bool "RISC-V ACLINT S-mode IPI Interrupt Controller"
 	depends on RISCV

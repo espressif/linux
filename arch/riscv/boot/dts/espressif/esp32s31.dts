@@ -99,6 +99,21 @@
 			interrupt-parent = <&clic>;
 		};
 
+		ipi: interrupt-controller@20586010 {
+			compatible = "esp,esp32s31-ipi";
+			/* HP_SYSTEM CPU_INT_FROM_CPU_0..3: one doorbell per hart. */
+			reg = <0x20586010 0x10>;
+			interrupt-controller;
+			#interrupt-cells = <0>;
+			/*
+			 * Hart n's doorbell is ETS source 65 + n, a per-core
+			 * source that intmtx routes into a reserved slot in that
+			 * hart's own window; the hart-0 source names the family.
+			 */
+			interrupt-parent = <&intmtx>;
+			interrupts = <65 IRQ_TYPE_LEVEL_HIGH>;
+		};
+
 		uart0: serial@2038a000 {
 			compatible = "esp,esp32s3-uart";
 			reg = <0x2038a000 0x100>;
