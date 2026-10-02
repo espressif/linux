@@ -16,7 +16,11 @@
 #define ESP_S31_RST_I2C0	1
 /* I2C1 reset (HP_SYS_CLKRST I2C1_CTRL0) */
 #define ESP_S31_RST_I2C1	2
+/* EMAC controller reset (CNNT_SYS HP_EMAC_CTRL) */
+#define ESP_S31_RST_EMAC	3
+/* USB OTG-HS PHY, AHB and APB resets (CNNT_SYS USB_OTG20_CTRL) */
+#define ESP_S31_RST_USB_OTGHS	4
 
-#define ESP_S31_RST_NUM		3
+#define ESP_S31_RST_NUM		5
 
 #endif /* ESP32S31_RESET_H */

@@ -17,16 +17,33 @@
 #include <dt-bindings/reset/esp32s31.h>
 
 /* Peripheral control registers in HP_SYS_CLKRST */
-#define ESP32S31_HP_CLKRST_IOMUX_CTRL0	0x15c
 #define ESP32S31_HP_CLKRST_I2C0_CTRL0	0x0dc
 #define ESP32S31_HP_CLKRST_I2C1_CTRL0	0x0e0
+#define ESP32S31_HP_CLKRST_IOMUX_CTRL0	0x15c
+
+/* Peripheral control registers in CNNT_SYS */
+#define ESP32S31_CNNT_HP_EMAC_CTRL	0x03c
 
 /*
  * The reset bit shared between IO_MUX and I2C control registers.
  */
 #define ESP32S31_IOMUX_I2C_RST_EN	BIT(1)
 
+/*
+ * The EMAC's own reset bit.
+ * This assumes the `EMAC_FORCE_NORST` bit is not set(which is true on bootup).
+ */
+#define ESP32S31_EMAC_RST_EN		BIT(1)
+
+#define ESP32S31_CNNT_USB_OTG20_CTRL	0x030
+#define ESP32S31_USB_OTGHS_RST_EN	(BIT(29) | BIT(30) | BIT(31))
+
+#define ESP32S31_RST_MAP_HP_SYS_CLKRST		0
+#define ESP32S31_RST_MAP_CNNT_SYS		1
+#define ESP32S31_RST_NUM_MAPS			2
+
 struct esp_s31_rst_desc {
+	u8 map_idx;
 	u32 reg;
 	u32 mask;
 };
@@ -44,11 +61,21 @@ static const struct esp_s31_rst_desc esp_s31_rst_descs[ESP_S31_RST_NUM] = {
 		.reg = ESP32S31_HP_CLKRST_I2C1_CTRL0,
 		.mask = ESP32S31_IOMUX_I2C_RST_EN,
 	},
+	[ESP_S31_RST_EMAC] = {
+		.map_idx = ESP32S31_RST_MAP_CNNT_SYS,
+		.reg = ESP32S31_CNNT_HP_EMAC_CTRL,
+		.mask = ESP32S31_EMAC_RST_EN,
+	},
+	[ESP_S31_RST_USB_OTGHS] = {
+		.map_idx = ESP32S31_RST_MAP_CNNT_SYS,
+		.reg = ESP32S31_CNNT_USB_OTG20_CTRL,
+		.mask = ESP32S31_USB_OTGHS_RST_EN,
+	},
 };
 
 struct esp_s31_reset {
 	struct reset_controller_dev rcdev;
-	struct regmap *map;
+	struct regmap *maps[ESP32S31_RST_NUM_MAPS];
 };
 
 static struct esp_s31_reset *to_esp_s31_reset(struct reset_controller_dev *rcdev)
@@ -67,7 +94,7 @@ static int esp_s31_reset_assert(struct reset_controller_dev *rcdev,
 
 	d = &esp_s31_rst_descs[id];
 
-	return regmap_update_bits(rst->map, d->reg, d->mask, d->mask);
+	return regmap_update_bits(rst->maps[d->map_idx], d->reg, d->mask, d->mask);
 }
 
 static int esp_s31_reset_deassert(struct reset_controller_dev *rcdev,
@@ -81,7 +108,7 @@ static int esp_s31_reset_deassert(struct reset_controller_dev *rcdev,
 
 	d = &esp_s31_rst_descs[id];
 
-	return regmap_update_bits(rst->map, d->reg, d->mask, 0);
+	return regmap_update_bits(rst->maps[d->map_idx], d->reg, d->mask, 0);
 }
 
 static int esp_s31_reset_status(struct reset_controller_dev *rcdev,
@@ -97,7 +124,7 @@ static int esp_s31_reset_status(struct reset_controller_dev *rcdev,
 
 	d = &esp_s31_rst_descs[id];
 
-	ret = regmap_read(rst->map, d->reg, &val);
+	ret = regmap_read(rst->maps[d->map_idx], d->reg, &val);
 	if (ret)
 		return ret;
 
@@ -114,6 +141,7 @@ static int esp_s31_reset_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct esp_s31_reset *rst;
+	struct regmap *map;
 	int ret;
 
 	if (!dev->parent)
@@ -123,10 +151,18 @@ static int esp_s31_reset_probe(struct platform_device *pdev)
 	if (!rst)
 		return -ENOMEM;
 
-	rst->map = syscon_node_to_regmap(dev->parent->of_node);
-	if (IS_ERR(rst->map))
-		return dev_err_probe(dev, PTR_ERR(rst->map),
+	map = syscon_node_to_regmap(dev->parent->of_node);
+	if (IS_ERR(map))
+		return dev_err_probe(dev, PTR_ERR(map),
 				     "failed to get parent syscon regmap\n");
+	rst->maps[ESP32S31_RST_MAP_HP_SYS_CLKRST] = map;
+
+	map = syscon_regmap_lookup_by_phandle(dev->of_node,
+					      "esp,cnnt-sys");
+	if (IS_ERR(map))
+		return dev_err_probe(dev, PTR_ERR(map),
+				     "failed to get cnnt-sys regmap\n");
+	rst->maps[ESP32S31_RST_MAP_CNNT_SYS] = map;
 
 	rst->rcdev.ops = &esp_s31_reset_ops;
 	rst->rcdev.owner = THIS_MODULE;

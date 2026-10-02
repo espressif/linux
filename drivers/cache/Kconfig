@@ -11,7 +11,9 @@ config AX45MP_L2_CACHE
 config ESP32S31_CACHE
 	bool "Espressif ESP32-S31 non-coherent DMA cache support"
 	depends on RISCV
+	select DMA_GLOBAL_POOL
 	select RISCV_DMA_NONCOHERENT
+	select SWIOTLB
 	select RISCV_NONSTANDARD_CACHE_OPS
 	help
 	  DMA cache maintenance on the Espressif ESP32-S31. The chip's

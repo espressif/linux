@@ -10,6 +10,7 @@
 /dts-v1/;
 
 #include <dt-bindings/clock/esp32s31.h>
+#include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/interrupt-controller/irq.h>
 #include <dt-bindings/pinctrl/esp32s31-iomux.h>
 #include <dt-bindings/reset/esp32s31.h>
@@ -21,6 +22,7 @@
 	model = "Espressif ESP32-S31 (minimal)";
 
 	aliases {
+		ethernet0 = &emac;
 		i2c0 = &i2c0;
 		serial0 = &uart0;
 	};
@@ -31,8 +33,15 @@
 		clock-frequency = <40000000>;
 	};
 
+	mpll_clk: clock-mpll {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <500000000>;
+	};
+
 	chosen {
-		bootargs = "earlycon=sbi console=ttyS0 root=mtd:rootfs rootfstype=cramfs ro";
+		bootargs =
+		"earlycon=sbi console=ttyS0 root=mtd:rootfs rootfstype=cramfs ro swiotlb=128";
 	};
 
 	cpus {
@@ -62,6 +71,19 @@
 	memory@50000000 {
 		device_type = "memory";
 		reg = <0x50000000 0x01000000>;
+	};
+
+	reserved-memory {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
+
+		dma_pool: dma-pool@2f030000 {
+			compatible = "shared-dma-pool";
+			linux,dma-default;
+			no-map;
+			reg = <0x2f030000 0x40000>;
+		};
 	};
 
 	soc {
@@ -108,8 +130,9 @@
 		pinctrl: pinctrl@20582000 {
 			compatible = "esp,esp32s31-pinctrl";
 			reg = <0x20582000 0x100>,
-			      <0x20583000 0xe00>;
-			reg-names = "iomux", "matrix";
+			      <0x20583000 0xe00>,
+			      <0x20588000 0x400>;
+			reg-names = "iomux", "matrix", "cnnt";
 			esp,usb-jtag = <&usb_jtag>;
 			clocks = <&clk ESP_S31_CLK_IOMUX_APB>,
 				 <&clk ESP_S31_CLK_IOMUX>;
@@ -130,6 +153,31 @@
 					bias-pull-up;
 					drive-strength = <5>;
 					drive-open-drain;
+				};
+
+				emac_pins: emac-pins {
+					pinmux =
+						/* MDC, MDIO */
+						<ESP_PINMUX(5, ESP_FUNC_S31_GMII_MDC_ID)>,
+						<ESP_PINMUX(6, ESP_FUNC_S31_GMII_MDIO_ID)>,
+						/* TXD0-3, TX_CTL, TX_CLK */
+						<ESP_PINMUX(8, ESP_FUNC_S31_GMAC_ID)>,
+						<ESP_PINMUX(9, ESP_FUNC_S31_GMAC_ID)>,
+						<ESP_PINMUX(10, ESP_FUNC_S31_GMAC_ID)>,
+						<ESP_PINMUX(11, ESP_FUNC_S31_GMAC_ID)>,
+						<ESP_PINMUX(12, ESP_FUNC_S31_GMAC_ID)>,
+						<ESP_PINMUX(13, ESP_FUNC_S31_GMAC_ID)>,
+						/* RX_CLK, RX_CTL, RXD3-0 */
+						<ESP_PINMUX(14, ESP_FUNC_S31_GMAC_ID)>,
+						<ESP_PINMUX(15, ESP_FUNC_S31_GMAC_ID)>,
+						<ESP_PINMUX(16, ESP_FUNC_S31_GMAC_ID)>,
+						<ESP_PINMUX(17, ESP_FUNC_S31_GMAC_ID)>,
+						<ESP_PINMUX(18, ESP_FUNC_S31_GMAC_ID)>,
+						<ESP_PINMUX(19, ESP_FUNC_S31_GMAC_ID)>;
+
+					input-enable;
+					bias-disable;
+					drive-strength = <20>;
 				};
 			};
 		};
@@ -165,20 +213,44 @@
 			reg = <0x20587000 0x400>;
 
 			/*
-			 * Register-less children: both providers reach their
-			 * bits through this parent node's window.
+			 * Register-less children. Both providers take the
+			 * HP_SYS_CLKRST window from this parent node and the
+			 * CNNT_SYS one, described below, by phandle.
 			 */
 			clk: clock-controller {
 				compatible = "esp,esp32s31-clk";
 				#clock-cells = <1>;
-				clocks = <&xtal_clk>;
-				clock-names = "xtal";
+				clocks = <&xtal_clk>, <&mpll_clk>;
+				clock-names = "xtal", "mpll";
+				esp,cnnt-sys = <&cnnt_sys>;
 			};
 
 			rst: reset-controller {
 				compatible = "esp,esp32s31-reset";
 				#reset-cells = <1>;
+				esp,cnnt-sys = <&cnnt_sys>;
 			};
+		};
+
+		/*
+		 * CNNT_SYS. The EMAC's RGMII mode, inversion and reference
+		 * clock selects, plus the clock gate and reset the providers
+		 * above drive.
+		 */
+		cnnt_sys: syscon@20359000 {
+			compatible = "esp,esp32s31-cnnt-sys", "syscon";
+			reg = <0x20359000 0x100>;
+		};
+
+		/*
+		 * HP_ALIVE_SYS. Carries the USB OTG-HS PHY glue -- the PLL and
+		 * suspend forcing, and the D+/D- pulldowns -- among unrelated
+		 * always-on control, so it is a shared syscon rather than a
+		 * window the PHY node claims for itself.
+		 */
+		hp_alive_sys: syscon@20589000 {
+			compatible = "esp,esp32s31-hp-alive-sys", "syscon";
+			reg = <0x20589000 0x100>;
 		};
 
 		i2c0: i2c@20385000 {
@@ -199,6 +271,59 @@
 			clock-frequency = <100000>;
 		};
 
+		/*
+		 * Synopsys DWMAC-3.70a, driven by stmmac through the
+		 * dwmac-esp32s31 glue.
+		 *
+		 * Only the Function-CoreBoard-1 carries a PHY. On a Korvo-1 this
+		 * node still probes and claims 14 pads, and never gets a link.
+		 */
+		emac: ethernet@20350000 {
+			compatible = "esp,esp32s31-dwmac", "snps,dwmac-3.70a";
+			reg = <0x20350000 0x2000>;
+			interrupt-parent = <&intmtx>;
+			/* ETS_SBD_INTR_SOURCE */
+			interrupts = <98 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "macirq";
+			clocks = <&clk ESP_S31_CLK_EMAC_SYS>,
+				 <&clk ESP_S31_CLK_EMAC_REF>,
+				 <&clk ESP_S31_CLK_EMAC_PTP>;
+			clock-names = "stmmaceth", "ref", "ptp_ref";
+			assigned-clocks = <&clk ESP_S31_CLK_EMAC_REF>;
+			assigned-clock-parents = <&mpll_clk>;
+			resets = <&rst ESP_S31_RST_EMAC>;
+			reset-names = "stmmaceth";
+			esp,cnnt-sys = <&cnnt_sys>;
+			dma-noncoherent;
+			snps,force_thresh_dma_mode;
+			snps,txpbl = <32>;
+			snps,rxpbl = <8>;
+			snps,no-pbl-x8;
+			snps,mixed-burst;
+			phy-mode = "rgmii-id";
+			phy-handle = <&phy0>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&emac_pins>;
+			max-speed = <100>;
+
+			mdio {
+				compatible = "snps,dwmac-mdio";
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				/*
+				 * Motorcomm YT8531 (IDR1 0x4f51, IDR2 0xe91b).
+				 */
+				phy0: ethernet-phy@0 {
+					compatible = "ethernet-phy-id4f51.e91b";
+					reg = <0>;
+					reset-gpios = <&gpio 7 GPIO_ACTIVE_LOW>;
+					reset-assert-us = <10000>;
+					reset-deassert-us = <500000>;
+				};
+			};
+		};
+
 		systimer: timer@20399000 {
 			compatible = "esp,esp32s31-systimer";
 			reg = <0x20399000 0x100>;
@@ -206,6 +331,32 @@
 			interrupt-parent = <&intmtx>;
 			interrupts = <33 IRQ_TYPE_LEVEL_HIGH>;
 			interrupt-names = "target0";
+		};
+
+		usb_phy: usb-phy@20380000 {
+			compatible = "esp,esp32s31-usb-phy";
+			reg = <0x20380000 0x20>;
+			#phy-cells = <0>;
+			clocks = <&clk ESP_S31_CLK_USB_OTGHS_PHYREF>;
+			clock-names = "ref";
+			esp,hp-alive-sys = <&hp_alive_sys>;
+			esp,cnnt-sys = <&cnnt_sys>;
+		};
+
+		usb: usb@20300000 {
+			compatible = "esp,esp32s31-hsotg", "snps,dwc2";
+			reg = <0x20300000 0x40000>;
+			interrupt-parent = <&intmtx>;
+			/* ETS_USB_OTGHS_INTR_SOURCE */
+			interrupts = <99 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&clk ESP_S31_CLK_USB_OTGHS_BUS>;
+			clock-names = "otg";
+			resets = <&rst ESP_S31_RST_USB_OTGHS>;
+			reset-names = "dwc2";
+			phys = <&usb_phy>;
+			phy-names = "usb2-phy";
+			dr_mode = "host";
+			dma-noncoherent;
 		};
 
 		rootflash: flash@40b00000 {

@@ -87,24 +87,86 @@ static void esp_layer_write(struct esp_pinctrl *epctl,
 			  (val << __ffs(l->mask)) & l->mask);
 }
 
+/* ---------------------------------------------------------------------
+ * Pad owners: blocks that hold pads away from the IO_MUX (see the struct).
+ * ---------------------------------------------------------------------
+ */
+/* The owner whose range covers pin and whose region is mapped, or NULL. */
+static const struct esp_pad_owner *esp_owner_of(struct esp_pinctrl *epctl,
+						unsigned int pin)
+{
+	const struct esp_pinctrl_soc *soc = epctl->soc;
+	unsigned int i;
+
+	for (i = 0; i < soc->nowners; i++) {
+		const struct esp_pad_owner *o = &soc->owners[i];
+
+		if (pin >= o->first_pin && pin <= o->last_pin &&
+		    (epctl->regs[o->map] || epctl->syscons[o->map]))
+			return o;
+	}
+
+	return NULL;
+}
+
+/* The owner a function hands its pads to, or NULL for an ordinary function. */
+static const struct esp_pad_owner *esp_fn_owner(const struct esp_pinctrl_soc *soc,
+						const struct esp_pin_function *fn)
+{
+	return fn->owner ? &soc->owners[fn->owner - 1] : NULL;
+}
+
+static bool esp_owner_holds(struct esp_pinctrl *epctl,
+			    const struct esp_pad_owner *o)
+{
+	unsigned int val = 0;
+
+	if (epctl->syscons[o->map])
+		regmap_read(epctl->syscons[o->map], o->reg, &val);
+	else
+		val = esp_region_read(epctl, o->map, o->reg);
+
+	return val & o->mask;
+}
+
+static void esp_owner_set(struct esp_pinctrl *epctl,
+			  const struct esp_pad_owner *o, bool held)
+{
+	u32 val = held ? o->mask : 0;
+
+	if (epctl->syscons[o->map])
+		regmap_update_bits(epctl->syscons[o->map], o->reg, o->mask, val);
+	else
+		esp_region_update(epctl, o->map, o->reg, o->mask, val);
+}
+
+/*
+ * The layer set governing a pin's electrical config: an owner's own layers
+ * while it holds the pin, the IO_MUX layers otherwise.
+ */
+static const struct esp_mux_layer *esp_layers_for(struct esp_pinctrl *epctl,
+						  unsigned int pin)
+{
+	const struct esp_pad_owner *o = esp_owner_of(epctl, pin);
+
+	if (o && o->layers && esp_owner_holds(epctl, o))
+		return o->layers;
+
+	return epctl->soc->layers;
+}
+
 /*
  * The only place a pad's IO_MUX function is written. A pad another block holds
  * is released first, or the function written would not reach it.
  */
 void esp_set_mux(struct esp_pinctrl *epctl, unsigned int pin, u32 mode)
 {
-	const struct esp_pinctrl_soc *soc = epctl->soc;
-	unsigned int i;
+	const struct esp_pad_owner *o = esp_owner_of(epctl, pin);
 
-	for (i = 0; i < soc->npad_claims; i++) {
-		const struct esp_pad_claim *c = &soc->pad_claims[i];
-		struct regmap *map = epctl->syscons[c->map];
+	if (o)
+		esp_owner_set(epctl, o, false);
 
-		if (map && pin >= c->first_pin && pin <= c->last_pin)
-			regmap_clear_bits(map, c->reg, c->mask);
-	}
-
-	esp_layer_write(epctl, &soc->layers[ESP_FIELD_FUNC], pin, mode);
+	esp_layer_write(epctl, &epctl->soc->layers[ESP_FIELD_FUNC], pin, mode);
 }
 
 /* Read the layer's field for pin, right-justified (0 if the region is absent). */
@@ -120,7 +182,8 @@ static u32 esp_layer_get(struct esp_pinctrl *epctl,
 static void esp_open_drain_write(struct esp_pinctrl *epctl, unsigned int pin,
 				 u32 val)
 {
-	const struct esp_mux_layer *l = &epctl->soc->layers[ESP_FIELD_OPEN_DRAIN];
+	const struct esp_mux_layer *l =
+		&esp_layers_for(epctl, pin)[ESP_FIELD_OPEN_DRAIN];
 	void __iomem *reg;
 	unsigned long flags;
 	u32 v;
@@ -138,7 +201,8 @@ static void esp_open_drain_write(struct esp_pinctrl *epctl, unsigned int pin,
 
 static u32 esp_open_drain_get(struct esp_pinctrl *epctl, unsigned int pin)
 {
-	const struct esp_mux_layer *l = &epctl->soc->layers[ESP_FIELD_OPEN_DRAIN];
+	const struct esp_mux_layer *l =
+		&esp_layers_for(epctl, pin)[ESP_FIELD_OPEN_DRAIN];
 
 	if (!esp_layer_covers(epctl, l, pin))
 		return 0;
@@ -346,6 +410,7 @@ static int esp_apply_function(struct esp_pinctrl *epctl, struct esp_pin_cfg *cfg
 {
 	const struct esp_pinctrl_soc *soc = epctl->soc;
 	const struct esp_pin_function *fn;
+	const struct esp_pad_owner *o;
 	int ret;
 
 	if (cfg->func >= soc->nfunctions) {
@@ -366,7 +431,15 @@ static int esp_apply_function(struct esp_pinctrl *epctl, struct esp_pin_cfg *cfg
 			return ret;
 	}
 
-	if (fn->top_mux >= 0)
+	/*
+	 * A function that names this pad's owner hands the pad to that block,
+	 * and the IO_MUX function is then irrelevant. On any other pad the
+	 * function is an ordinary IO_MUX one, which releases the pad first.
+	 */
+	o = esp_owner_of(epctl, cfg->pin);
+	if (o && o == esp_fn_owner(soc, fn))
+		esp_owner_set(epctl, o, true);
+	else if (fn->top_mux >= 0)
 		esp_set_mux(epctl, cfg->pin, fn->top_mux);
 
 	dev_dbg(epctl->dev, "%s func: pin %u func %u top=%d\n",
@@ -498,7 +571,7 @@ static int esp_pinconf_get(struct pinctrl_dev *pctldev,
 			   unsigned int pin, unsigned long *config)
 {
 	struct esp_pinctrl *epctl = pinctrl_dev_get_drvdata(pctldev);
-	const struct esp_mux_layer *layers = epctl->soc->layers;
+	const struct esp_mux_layer *layers = esp_layers_for(epctl, pin);
 	enum pin_config_param param = pinconf_to_config_param(*config);
 	u32 arg;
 
@@ -543,7 +616,7 @@ static int esp_pinconf_set(struct pinctrl_dev *pctldev,
 			   unsigned int num_configs)
 {
 	struct esp_pinctrl *epctl = pinctrl_dev_get_drvdata(pctldev);
-	const struct esp_mux_layer *layers = epctl->soc->layers;
+	const struct esp_mux_layer *layers = esp_layers_for(epctl, pin);
 	unsigned int i;
 	int drv;
 

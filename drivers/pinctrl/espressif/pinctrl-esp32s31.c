@@ -41,6 +41,28 @@
 #define S31_MATRIX_OUT_SEL_CFG_OFFSET	0xAF4
 #define S31_MATRIX_SIG_IN_SEL		BIT(9)
 
+/* CNNT_IO_MUX_CTRL_REG: the per-subsystem DED_SEL bits. */
+#define S31_CNNT_CTRL			0x3F4
+#define S31_SDIO_PAD_PIN_CTRL_DED_SEL	BIT(0)
+#define S31_GMAC_PAD_PIN_CTRL_DED_SEL	BIT(1)
+
+/*
+ * CNNT IO MUX per-pad registers, one per dedicated pad, in a single dense block
+ * from GPIO13: GMAC GPIO13..GPIO19 at 0x00..0x18, SDIO GPIO20..GPIO25 at
+ * 0x1C..0x30 -- i.e. (pin - 13) * 4 throughout. The electrical fields differ
+ * from the IO_MUX pad word (there is no MCU_SEL) and take effect only while the
+ * subsystem's DED_SEL selects the dedicated path.
+ */
+#define S31_CNNT_FUN_WPD		BIT(6)
+#define S31_CNNT_FUN_WPU		BIT(7)
+#define S31_CNNT_FUN_IE			BIT(8)
+#define S31_CNNT_FUN_DRV		(0x3U << 9)
+#define S31_CNNT_FIRST_PIN		13
+#define S31_CNNT_GMAC_FIRST_PIN		13
+#define S31_CNNT_GMAC_LAST_PIN		19
+#define S31_CNNT_SDIO_FIRST_PIN		20
+#define S31_CNNT_SDIO_LAST_PIN		25
+
 /* In the USB-Serial/JTAG block, reached through its syscon. */
 #define S31_USB_JTAG_CONF0		0x18
 #define S31_USB_JTAG_PAD_ENABLE		BIT(14)
@@ -84,6 +106,7 @@ static const struct esp_region esp32s31_regions[] = {
 	{ .id = ESP_REGMAP_MATRIX, .dt_name = "matrix", .shared = true },
 	/* Without it GPIO33/34 are left to USB-Serial/JTAG. */
 	{ .id = ESP_REGMAP_USB_JTAG, .syscon = "esp,usb-jtag", .optional = true },
+	{ .id = ESP_REGMAP_CNNT, .dt_name = "cnnt", .optional = true },
 };
 
 static const struct esp_mux_layer esp32s31_layers[ESP_FIELD_MAX] = {
@@ -96,7 +119,70 @@ static const struct esp_mux_layer esp32s31_layers[ESP_FIELD_MAX] = {
 				   S31_GPIO_PIN_PAD_DRIVER },
 };
 
-/* FUN_DRV register encoding to milliamps (TRM §1.20.2, IO_MUX_GPIOn_FUN_DRV). */
+/*
+ * The CNNT dedicated pads (GMAC GPIO13-19, SDIO GPIO20-25) have no function in
+ * the IO_MUX -- their signals reach the peripheral only through the dedicated
+ * path -- so when that path is selected their pinconf lands in the CNNT pad
+ * registers, not the IO_MUX pad word. One dense block from GPIO13, so a single
+ * layer set (first_pin 13, base 0) addresses both subsystems. Same field set as
+ * above minus the mux (there is no MCU_SEL here) and open-drain.
+ */
+static const struct esp_mux_layer esp32s31_cnnt_layers[ESP_FIELD_MAX] = {
+	[ESP_FIELD_IE]        = { ESP_REGMAP_CNNT, 0, 4, S31_CNNT_FUN_IE,
+				  S31_CNNT_FIRST_PIN },
+	[ESP_FIELD_PULL_UP]   = { ESP_REGMAP_CNNT, 0, 4, S31_CNNT_FUN_WPU,
+				  S31_CNNT_FIRST_PIN },
+	[ESP_FIELD_PULL_DOWN] = { ESP_REGMAP_CNNT, 0, 4, S31_CNNT_FUN_WPD,
+				  S31_CNNT_FIRST_PIN },
+	[ESP_FIELD_DRIVE]     = { ESP_REGMAP_CNNT, 0, 4, S31_CNNT_FUN_DRV,
+				  S31_CNNT_FIRST_PIN },
+};
+
+enum esp32s31_owner {
+	S31_OWNER_USB_JTAG,
+	S31_OWNER_CNNT_GMAC,
+	S31_OWNER_CNNT_SDIO,
+};
+
+/*
+ * GPIO33/34 are the USB PHY's D-/D+, held by USB-Serial/JTAG while its pad
+ * enable is set. No function names that owner, so muxing either pad loses the
+ * port until reset.
+ *
+ * The two CNNT subsystems each have a DED_SEL bit in the CNNT control
+ * register. Only GMAC has a function in the table; an SDIO function added
+ * later names S31_OWNER_CNNT_SDIO the same way.
+ */
+static const struct esp_pad_owner esp32s31_owners[] = {
+	[S31_OWNER_USB_JTAG] = {
+		.first_pin	= S31_USB_PHY0_DM_GPIO,
+		.last_pin	= S31_USB_PHY0_DP_GPIO,
+		.map		= ESP_REGMAP_USB_JTAG,
+		.reg		= S31_USB_JTAG_CONF0,
+		.mask		= S31_USB_JTAG_PAD_ENABLE,
+	},
+	[S31_OWNER_CNNT_GMAC] = {
+		.first_pin	= S31_CNNT_GMAC_FIRST_PIN,
+		.last_pin	= S31_CNNT_GMAC_LAST_PIN,
+		.map		= ESP_REGMAP_CNNT,
+		.reg		= S31_CNNT_CTRL,
+		.mask		= S31_GMAC_PAD_PIN_CTRL_DED_SEL,
+		.layers		= esp32s31_cnnt_layers,
+	},
+	[S31_OWNER_CNNT_SDIO] = {
+		.first_pin	= S31_CNNT_SDIO_FIRST_PIN,
+		.last_pin	= S31_CNNT_SDIO_LAST_PIN,
+		.map		= ESP_REGMAP_CNNT,
+		.reg		= S31_CNNT_CTRL,
+		.mask		= S31_SDIO_PAD_PIN_CTRL_DED_SEL,
+		.layers		= esp32s31_cnnt_layers,
+	},
+};
+
+/*
+ * FUN_DRV register encoding to milliamps (TRM §1.20.2, IO_MUX_GPIOn_FUN_DRV).
+ * The CNNT pad registers use the same two-bit encoding.
+ */
 static const unsigned int esp32s31_drv_mA[ESP_DRV_LEVELS_MAX] = { 5, 10, 20, 40 };
 
 /*
@@ -113,6 +199,13 @@ static const struct esp_pin_function esp32s31_functions[] = {
 				       I2C1_SCL_PAD_OUT_IDX },
 	[ESP_FUNC_S31_I2C1_SDA_ID] = { GPIO_FUNC_GPIO, I2C1_SDA_PAD_IN_IDX,
 				       I2C1_SDA_PAD_OUT_IDX },
+	/* TX pads take IO_MUX function 2; the RX/clock pads go to the CNNT owner. */
+	[ESP_FUNC_S31_GMAC_ID] = { GPIO_FUNC_GMAC, ESP_FUNC_NONE, ESP_FUNC_NONE,
+				   ESP_OWNER(S31_OWNER_CNNT_GMAC) },
+	[ESP_FUNC_S31_GMII_MDC_ID] = { GPIO_FUNC_GPIO, ESP_FUNC_NONE,
+				       GMII_MDC_PAD_OUT_IDX },
+	[ESP_FUNC_S31_GMII_MDIO_ID] = { GPIO_FUNC_GPIO, GMII_MDI_PAD_IN_IDX,
+					GMII_MDO_PAD_OUT_IDX },
 };
 
 static int esp_s31_matrix_set_in(struct esp_pinctrl *epctl, u32 gpio, u32 signal)
@@ -141,16 +234,6 @@ static int esp_s31_matrix_set_out(struct esp_pinctrl *epctl, u32 gpio, u32 signa
 }
 
 /*
- * GPIO33/34 are the USB PHY's D-/D+, held by USB-Serial/JTAG while its pad
- * enable is set. Nothing sets it again, so muxing either pad loses the port
- * until reset.
- */
-static const struct esp_pad_claim esp32s31_pad_claims[] = {
-	{ S31_USB_PHY0_DM_GPIO, S31_USB_PHY0_DP_GPIO, ESP_REGMAP_USB_JTAG,
-	  S31_USB_JTAG_CONF0, S31_USB_JTAG_PAD_ENABLE },
-};
-
-/*
  * A pad reaches gpiolib through the matrix like any other signal: mux mode 1
  * takes it to the crossbar, and output signal SIG_GPIO_OUT_IDX means "drive
  * this pad from GPIO_OUT" rather than from a peripheral.
@@ -174,9 +257,9 @@ const struct esp_pinctrl_soc esp32s31_soc = {
 	.nfunctions	= ARRAY_SIZE(esp32s31_functions),
 	.drv_mA		= esp32s31_drv_mA,
 	.ndrv_levels	= ARRAY_SIZE(esp32s31_drv_mA),
+	.owners		= esp32s31_owners,
+	.nowners	= ARRAY_SIZE(esp32s31_owners),
 	.matrix_set_in	= esp_s31_matrix_set_in,
 	.matrix_set_out	= esp_s31_matrix_set_out,
 	.gpio_request	= esp_s31_gpio_request,
-	.pad_claims	= esp32s31_pad_claims,
-	.npad_claims	= ARRAY_SIZE(esp32s31_pad_claims),
 };

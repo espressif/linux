@@ -50,6 +50,13 @@ config DWMAC_DWC_QOS_ETH
 	help
 	  Support for chips using the snps,dwc-qos-ethernet.txt DT binding.
 
+config DWMAC_ESP32S31
+	tristate "Espressif ESP32-S31 DWMAC support"
+	depends on OF && (ARCH_ESPRESSIF || COMPILE_TEST)
+	select MFD_SYSCON
+	help
+	  Support for Ethernet controller on Espressif ESP32-S31 SoCs.
+
 config DWMAC_GENERIC
 	tristate "Generic driver for DWMAC"
 	default STMMAC_PLATFORM
