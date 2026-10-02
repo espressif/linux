@@ -93,7 +93,7 @@
 
 		intmtx: interrupt-controller@20585000 {
 			compatible = "esp,esp32s31-intmtx";
-			reg = <0x20585000 0x800>;
+			reg = <0x20585000 0x1000>;
 			interrupt-controller;
 			#interrupt-cells = <2>;
 			interrupt-parent = <&clic>;

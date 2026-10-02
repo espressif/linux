@@ -678,10 +678,7 @@ config ESP_INTMTX
 	depends on ESP_CLIC
 	select IRQ_DOMAIN_HIERARCHY
 	help
-	  Drive the ESP32-S31 INTMTX, which routes peripheral source
-	  lines to CLIC slots. Sits between peripheral drivers and
-	  irq-esp-clic in the irq-domain hierarchy and allocates CLIC
-	  slots on demand.
+	  Enable support for Interrupt Matrix on Espressif SOCs.
 
 	  If unsure, say N.
 

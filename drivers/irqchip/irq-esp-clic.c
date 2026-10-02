@@ -29,11 +29,19 @@
 #define CLIC_ATTR_TRIG_MASK	0x6U
 #define CLIC_ATTR_TRIG_LEVEL	0x0U
 
+/*
+ * OpenSBI leaves cliccfg.snlbits at 0, so every S-mode source decodes to the
+ * same interrupt level and clicintctl only orders simultaneously pending
+ * sources. All of them get the same value: no interrupt preempts another.
+ */
 #define CLIC_CTL_MAX_PRIO	0xE0U
 
 #define CLIC_EXT_FIRST		16U
 #define CLIC_EXT_LAST		47U
 #define CLIC_EXT_COUNT		(CLIC_EXT_LAST - CLIC_EXT_FIRST + 1U)
+
+/* clicintattr with mode=01 (S-mode) and trigger=level. */
+#define CLIC_ATTR_S_LEVEL	0x40U
 
 struct esp_clic {
 	void __iomem		*base;
@@ -114,6 +122,40 @@ static struct irq_chip esp_clic_chip = {
 	.flags		= IRQCHIP_SKIP_SET_WAKE,
 };
 
+static void esp_clic_percpu_set_ie(struct irq_data *d, bool enable)
+{
+	writeb_relaxed(enable ? 1 : 0, clic->base + CLIC_INTIE_OFF(d->hwirq));
+}
+
+static void esp_clic_percpu_mask(struct irq_data *d)
+{
+	esp_clic_percpu_set_ie(d, false);
+}
+
+static void esp_clic_percpu_unmask(struct irq_data *d)
+{
+	esp_clic_percpu_set_ie(d, true);
+}
+
+static int esp_clic_percpu_set_type(struct irq_data *d, unsigned int type)
+{
+	if (type != IRQ_TYPE_LEVEL_HIGH)
+		return -EINVAL;
+
+	writeb_relaxed(CLIC_ATTR_S_LEVEL,
+		       clic->base + CLIC_INTATTR_OFF(d->hwirq));
+	writeb_relaxed(CLIC_CTL_MAX_PRIO,
+		       clic->base + CLIC_INTCTL_OFF(d->hwirq));
+	return 0;
+}
+
+static struct irq_chip esp_clic_percpu_chip = {
+	.name		= "esp-clic-percpu",
+	.irq_mask	= esp_clic_percpu_mask,
+	.irq_unmask	= esp_clic_percpu_unmask,
+	.irq_set_type	= esp_clic_percpu_set_type,
+};
+
 /*
  * Chained handler — runs in interrupt context when scause lands on a
  * CLIC slot we own. The intc-layer descriptor's hwirq is the slot ID,
@@ -134,8 +176,9 @@ static int esp_clic_install_chained(struct esp_clic *priv, unsigned int slot)
 	unsigned int idx = slot_to_idx(slot);
 	unsigned int intc_virq;
 
+	/* Kept across a domain free, so a re-used slot finds its handler here. */
 	if (priv->intc_virqs[idx])
-		return 0;	/* already installed (shared slot) */
+		return 0;
 
 	intc_virq = irq_create_mapping(priv->parent_domain, slot);
 	if (!intc_virq) {
@@ -168,6 +211,19 @@ static int esp_clic_domain_alloc(struct irq_domain *domain, unsigned int virq,
 	for (i = 0; i < nr_irqs; i++) {
 		irq_hw_number_t src = hwirq + i;
 		void __iomem *bank;
+
+		if (irq_is_percpu_devid(virq + i)) {
+			irq_domain_set_info(domain, virq + i, src,
+					    &esp_clic_percpu_chip, priv,
+					    handle_percpu_devid_irq, NULL,
+					    NULL);
+
+			ret = esp_clic_install_chained(priv, src);
+			if (ret)
+				return ret;
+
+			continue;
+		}
 
 		/* Set the effective affinity to CPU0 by default */
 		irq_data_update_effective_affinity(irq_get_irq_data(virq + i),
