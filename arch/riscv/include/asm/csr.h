@@ -78,6 +78,10 @@
 /* Exception cause high bit - is an interrupt if set */
 #define CAUSE_IRQ_FLAG		(_AC(1, UL) << (__riscv_xlen - 1))
 
+/* CLIC-mode scause fields: SPP [28], SPIE [27], SPIL [23:16], exccode [11:0] */
+#define CAUSE_CLIC_EXCCODE	_AC(0x00000fff, UL) /* Exception code */
+#define CAUSE_CLIC_SPP		_AC(0x10000000, UL) /* Previous privilege, mirrors SR_SPP */
+
 /* Interrupt causes (minus the high bit) */
 #define IRQ_S_SOFT		1
 #define IRQ_VS_SOFT		2

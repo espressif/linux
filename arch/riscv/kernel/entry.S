@@ -21,16 +21,14 @@
 	.section .irqentry.text, "ax"
 
 /*
- * ESP32-S31 CLIC quirk: scause has CLIC extension bits in [30:12]
- * (SPP at [28], SPIL at [27:16]). Strip them so the cause matches
- * the standard RISC-V exception codes that excp_vect_table and the
- * C handlers expect. Preserves the Interrupt flag (bit XLEN-1) and
- * the low 12 bits. Gated by RISCV_ESP_CLIC_TRAP_QUIRK (selected by
- * ESP_CLIC); a no-op macro on every other platform.
+ * In CLIC mode sret reloads the in-service interrupt level from scause.SPIL,
+ * so the whole scause register is saved in pt_regs at entry and written back
+ * before returning from the trap. The C handlers see only the exception code.
  */
-.macro mask_clic_scause reg, scratch
+.macro save_and_mask_clic_scause reg, scratch
 #ifdef CONFIG_RISCV_ESP_CLIC_TRAP_QUIRK
-	li \scratch, CAUSE_IRQ_FLAG | 0xFFF
+	REG_S \reg, PT_CLIC_SCAUSE(sp)
+	li \scratch, CAUSE_IRQ_FLAG | CAUSE_CLIC_EXCCODE
 	and \reg, \reg, \scratch
 #endif
 .endm
@@ -177,10 +175,7 @@ SYM_CODE_START(handle_exception)
 	csrr s2, CSR_EPC
 	csrr s3, CSR_TVAL
 	csrr s4, CSR_CAUSE
-#ifdef CONFIG_RISCV_ESP_CLIC_TRAP_QUIRK
-	REG_S s4, PT_CLIC_SCAUSE(sp)	/* raw scause (SPP/SPIL) for sret level restore */
-#endif
-	mask_clic_scause s4, t0	/* ESP32-S31: strip CLIC SPP/SPIL bits */
+	save_and_mask_clic_scause s4, t0
 	csrr s5, CSR_SCRATCH
 	REG_S s0, PT_SP(sp)
 	REG_S s1, PT_STATUS(sp)
@@ -293,33 +288,18 @@ SYM_CODE_START_NOALIGN(ret_from_exception)
 	REG_L  a2, PT_EPC(sp)
 	REG_SC x0, a2, PT_EPC(sp)
 
-	csrw CSR_STATUS, a0
-	csrw CSR_EPC, a2
-
 #ifdef CONFIG_RISCV_ESP_CLIC_TRAP_QUIRK
 	/*
-	 * CLIC v0.9 (verified on this silicon): sret reloads the S in-service
-	 * interrupt level (sintstatus.sil) from scause.SPIL *only* when scause
-	 * is interrupt-type (bit31 set). If an interrupt handler's final sret
-	 * runs with an exception-type scause (a nested exception overwrote it),
-	 * sil is never lowered; with the strict level>sil delivery gate all
-	 * interrupts (incl. the timer tick) are blocked forever -> idle wedge.
-	 *
-	 * Force every trap exit to sret with an interrupt-type, SPIL=0 scause
-	 * (keeping the original exccode). This resets sil to the base level on
-	 * every return, which is always correct here: all CLIC interrupts run
-	 * at one level and handlers execute with SIE=0, so no context that
-	 * sret returns to legitimately needs sil > 0. t0/t1 are restored from
-	 * the stack below.
+	 * scause.SPP/SPIE alias the sstatus bits, so this must precede the
+	 * sstatus write: PT_STATUS decides the mode and interrupt state the
+	 * sret returns to, and may differ from what trap entry captured.
 	 */
 	REG_L t0, PT_CLIC_SCAUSE(sp)
-	li t1, 0x00ff0000	/* clear SPIL[23:16] only — scause.SPP/SPIE */
-	not t1, t1		/* mirror sstatus.SPP/SPIE and must be kept */
-	and t0, t0, t1		/* (they were saved at trap entry) */
-	li t1, 0x80000000	/* force interrupt-type so sret reloads sil */
-	or t0, t0, t1
 	csrw CSR_CAUSE, t0
 #endif
+
+	csrw CSR_STATUS, a0
+	csrw CSR_EPC, a2
 
 	REG_L x1,  PT_RA(sp)
 	REG_L x3,  PT_GP(sp)
@@ -362,7 +342,7 @@ SYM_CODE_START_LOCAL(handle_kernel_stack_overflow)
 	csrr s2, CSR_EPC
 	csrr s3, CSR_TVAL
 	csrr s4, CSR_CAUSE
-	mask_clic_scause s4, t0	/* ESP32-S31: strip CLIC SPP/SPIL bits */
+	save_and_mask_clic_scause s4, t0
 	csrr s5, CSR_SCRATCH
 	REG_S s0, PT_SP(sp)
 	REG_S s1, PT_STATUS(sp)
@@ -488,7 +468,20 @@ SYM_FUNC_START(__switch_to)
 	move tp, a1
 	/* Switch to the next shadow call stack */
 	scs_load_current
+#ifdef CONFIG_RISCV_ESP_CLIC_TRAP_QUIRK
+	/*
+	 * In CLIC mode the in-service interrupt level is reloaded from
+	 * scause.SPIL only by an sret whose scause is interrupt-type. Make
+	 * the switch that return: same destination, S-mode, interrupts off,
+	 * level 0.
+	 */
+	csrw CSR_EPC, ra
+	li t0, CAUSE_IRQ_FLAG | CAUSE_CLIC_SPP
+	csrw CSR_CAUSE, t0
+	sret
+#else
 	ret
+#endif
 SYM_FUNC_END(__switch_to)
 
 #ifndef CONFIG_MMU
