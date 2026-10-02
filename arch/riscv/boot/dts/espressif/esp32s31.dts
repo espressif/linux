@@ -57,6 +57,25 @@
 					     "riscv,cpu-intc";
 			};
 		};
+
+		cpu1: cpu@1 {
+			device_type = "cpu";
+			reg = <1>;
+			compatible = "riscv";
+			riscv,isa = "rv32imac_zicsr_zifencei";
+			riscv,isa-base = "rv32i";
+			riscv,isa-extensions = "i", "m", "a", "c", "zicsr",
+					       "zifencei";
+			mmu-type = "riscv,sv32";
+			clock-frequency = <320000000>;
+
+			cpu1_intc: interrupt-controller {
+				#interrupt-cells = <1>;
+				interrupt-controller;
+				compatible = "esp,esp32s31-cpu-intc",
+					     "riscv,cpu-intc";
+			};
+		};
 	};
 
 	memory@50000000 {
