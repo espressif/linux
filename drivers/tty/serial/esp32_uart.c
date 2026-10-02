@@ -235,17 +235,15 @@ static void esp32_uart_stop_tx(struct uart_port *port)
 	esp32_uart_write(port, UART_INT_ENA_REG, int_ena);
 }
 
+/* Caller holds port->lock. */
 static void esp32_uart_rxint(struct uart_port *port)
 {
 	struct tty_port *tty_port = &port->state->port;
 	u32 rx_fifo_cnt = esp32_uart_rx_fifo_cnt(port);
-	unsigned long flags;
 	u32 i;
 
 	if (!rx_fifo_cnt)
 		return;
-
-	spin_lock_irqsave(&port->lock, flags);
 
 	for (i = 0; i < rx_fifo_cnt; ++i) {
 		u32 rx = esp32_uart_read(port, UART_FIFO_REG);
@@ -262,9 +260,6 @@ static void esp32_uart_rxint(struct uart_port *port)
 			++port->icount.rx;
 		}
 	}
-	spin_unlock_irqrestore(&port->lock, flags);
-
-	tty_flip_buffer_push(tty_port);
 }
 
 static void esp32_uart_put_char(struct uart_port *port, u8 c)
@@ -316,7 +311,10 @@ static void esp32_uart_txint(struct uart_port *port)
 static irqreturn_t esp32_uart_int(int irq, void *dev_id)
 {
 	struct uart_port *port = dev_id;
+	unsigned long flags;
 	u32 status;
+
+	spin_lock_irqsave(&port->lock, flags);
 
 	status = esp32_uart_read(port, UART_INT_ST_REG);
 
@@ -326,6 +324,11 @@ static irqreturn_t esp32_uart_int(int irq, void *dev_id)
 		esp32_uart_txint(port);
 
 	esp32_uart_write(port, UART_INT_CLR_REG, status);
+
+	spin_unlock_irqrestore(&port->lock, flags);
+
+	if (status & (UART_RXFIFO_FULL_INT | UART_BRK_DET_INT))
+		tty_flip_buffer_push(&port->state->port);
 
 	return IRQ_RETVAL(status);
 }
