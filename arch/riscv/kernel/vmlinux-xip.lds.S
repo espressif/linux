@@ -146,6 +146,7 @@ SECTIONS
 	 */
 	.data.endmark : AT(ADDR(.data.endmark) - LOAD_OFFSET) { }
 	_edata_loc = LOADADDR(.data.endmark);
+	__data_copy_end = .;
 
 	. = ALIGN(PAGE_SIZE);
 	_end = .;
