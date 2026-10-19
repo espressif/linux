@@ -242,6 +242,11 @@
 			reg = <0x20359000 0x100>;
 		};
 
+		efuse: syscon@20715000 {
+			compatible = "esp,esp32s31-efuse", "syscon";
+			reg = <0x20715000 0x200>;
+		};
+
 		/*
 		 * HP_ALIVE_SYS. Carries the USB OTG-HS PHY glue -- the PLL and
 		 * suspend forcing, and the D+/D- pulldowns -- among unrelated
@@ -294,6 +299,7 @@
 			resets = <&rst ESP_S31_RST_EMAC>;
 			reset-names = "stmmaceth";
 			esp,cnnt-sys = <&cnnt_sys>;
+			esp,efuse = <&efuse>;
 			dma-noncoherent;
 			snps,force_thresh_dma_mode;
 			snps,txpbl = <32>;
@@ -304,7 +310,6 @@
 			phy-handle = <&phy0>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&emac_pins>;
-			max-speed = <100>;
 
 			mdio {
 				compatible = "snps,dwmac-mdio";
