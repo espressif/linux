@@ -46,6 +46,18 @@ config 104_QUAD_8
 	  array module parameter. The interrupt line numbers for the devices may
 	  be configured via the irq array module parameter.
 
+config ESP_PCNT
+	tristate "Espressif pulse counter"
+	depends on ARCH_ESPRESSIF || COMPILE_TEST
+	depends on HAS_IOMEM && OF
+	help
+	  Pulse counter (PCNT) on Espressif SoCs. Each instance exposes its
+	  units with increase and quadrature x4 functions through the Generic
+	  Counter interface.
+
+	  To compile this driver as a module, choose M here: the module will be
+	  called esp-pcnt.
+
 config FTM_QUADDEC
 	tristate "Flex Timer Module Quadrature decoder driver"
 	depends on SOC_LS1021A || COMPILE_TEST

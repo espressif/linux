@@ -24,6 +24,7 @@
 #define ESP32S31_HP_CLKRST_I2C0_CTRL0	0x0dc
 #define ESP32S31_HP_CLKRST_I2C1_CTRL0	0x0e0
 #define ESP32S31_HP_CLKRST_IOMUX_CTRL0	0x15c
+#define ESP32S31_HP_CLKRST_PCNT_CTRL0	0x138
 
 /* Peripheral control registers in CNNT_SYS */
 #define ESP32S31_CNNT_HP_EMAC_REF_CTRL	0x040
@@ -52,6 +53,9 @@
  * reset default and the mux is not described.
  */
 #define ESP32S31_EMAC_PTP_REF_CLK_EN	BIT(0)
+
+#define ESP32S31_PCNT0_APB_CLK_EN	BIT(0)
+#define ESP32S31_PCNT1_APB_CLK_EN	BIT(3)
 
 /* HP_SYS_CLKRST USB_OTGHS_CTRL0 */
 #define ESP32S31_HP_CLKRST_USB_OTGHS_CTRL0	0x0ac
@@ -231,6 +235,7 @@ static const char * const esp32s31_emac_ref_parents[] = { "mpll" };
 static const char * const esp32s31_emac_ptp_parents[] = { "xtal" };
 static const char * const esp32s31_usb_otghs_bus_parents[] = { "xtal" };
 static const char * const esp32s31_usb_otghs_phyref_parents[] = { "xtal" };
+static const char * const esp32s31_apb_parents[] = { "apb" };
 
 static const struct esp_clk_desc esp32s31_clk_descs[ESP_S31_CLK_NUM] = {
 	[ESP_S31_CLK_IOMUX_APB] = {
@@ -317,6 +322,20 @@ static const struct esp_clk_desc esp32s31_clk_descs[ESP_S31_CLK_NUM] = {
 		.gate = ESP32S31_EMAC_PTP_REF_CLK_EN,
 		.parents = esp32s31_emac_ptp_parents,
 		.num_parents = ARRAY_SIZE(esp32s31_emac_ptp_parents),
+	},
+	[ESP_S31_CLK_PCNT0_APB] = {
+		.name = "pcnt0_apb",
+		.reg = ESP32S31_HP_CLKRST_PCNT_CTRL0,
+		.gate = ESP32S31_PCNT0_APB_CLK_EN,
+		.parents = esp32s31_apb_parents,
+		.num_parents = ARRAY_SIZE(esp32s31_apb_parents),
+	},
+	[ESP_S31_CLK_PCNT1_APB] = {
+		.name = "pcnt1_apb",
+		.reg = ESP32S31_HP_CLKRST_PCNT_CTRL0,
+		.gate = ESP32S31_PCNT1_APB_CLK_EN,
+		.parents = esp32s31_apb_parents,
+		.num_parents = ARRAY_SIZE(esp32s31_apb_parents),
 	},
 };
 

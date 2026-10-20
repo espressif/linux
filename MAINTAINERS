@@ -9239,6 +9239,13 @@ L:	linux-can@vger.kernel.org
 S:	Maintained
 F:	drivers/net/can/usb/esd_usb.c
 
+ESPRESSIF PULSE COUNTER (PCNT) DRIVER
+M:	Mao Shengrong <maoshengrong@espressif.com>
+L:	linux-iio@vger.kernel.org
+S:	Maintained
+F:	Documentation/devicetree/bindings/counter/esp,esp-pcnt.yaml
+F:	drivers/counter/esp-pcnt.c
+
 ESWIN DEVICETREES
 M:	Min Lin <linmin@eswincomputing.com>
 M:	Pinkesh Vaghela <pinkesh.vaghela@einfochips.com>
