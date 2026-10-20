@@ -6,6 +6,7 @@
 
 #include <linux/clk.h>
 #include <linux/delay.h>
+#include <linux/etherdevice.h>
 #include <linux/mfd/syscon.h>
 #include <linux/module.h>
 #include <linux/of.h>
@@ -43,10 +44,75 @@
 #define GMAC_PHY_INTF_SEL_MASK		GENMASK(4, 2)
 #define GMAC_PHY_INTF_SEL_RGMII		BIT(2)
 
+#define EFUSE_RD_MAC_SYS0		0x00000050U
+#define EFUSE_RD_MAC_SYS1		0x00000054U
+#define ESP32S31_MAC_UL_BIT		0x02
+#define ESP32S31_MAC_UL_FLIP		0x04
+
 struct esp32s31_dwmac {
 	struct regmap	*cnnt_sys;
 	struct clk	*clk_ref;
 };
+
+static void esp32s31_derive_local_mac(u8 *local, const u8 *universal)
+{
+	ether_addr_copy(local, universal);
+	local[0] |= ESP32S31_MAC_UL_BIT;
+	if (local[0] == universal[0])
+		local[0] ^= ESP32S31_MAC_UL_FLIP;
+}
+
+static int esp32s31_dwmac_read_factory_mac(struct device *dev, u8 *mac)
+{
+	struct regmap *efuse;
+	u32 mac0, mac1;
+	int rc;
+
+	efuse = syscon_regmap_lookup_by_phandle(dev->of_node, "esp,efuse");
+	if (IS_ERR(efuse))
+		return PTR_ERR(efuse);
+
+	rc = regmap_read(efuse, EFUSE_RD_MAC_SYS0, &mac0);
+	if (rc)
+		return rc;
+
+	rc = regmap_read(efuse, EFUSE_RD_MAC_SYS1, &mac1);
+	if (rc)
+		return rc;
+
+	mac[0] = (mac1 >> 8) & 0xff;
+	mac[1] = mac1 & 0xff;
+	mac[2] = (mac0 >> 24) & 0xff;
+	mac[3] = (mac0 >> 16) & 0xff;
+	mac[4] = (mac0 >> 8) & 0xff;
+	mac[5] = mac0 & 0xff;
+
+	if (!is_valid_ether_addr(mac))
+		return -EINVAL;
+
+	return 0;
+}
+
+static int esp32s31_dwmac_mac_from_efuse(struct device *dev, u8 *eth_mac)
+{
+	u8 factory[ETH_ALEN];
+	u8 src[ETH_ALEN];
+	int rc;
+
+	rc = esp32s31_dwmac_read_factory_mac(dev, factory);
+	if (rc)
+		return rc;
+
+	/* Two universal addresses per chip; Ethernet uses factory+1 as local. */
+	ether_addr_copy(src, factory);
+	src[5] += 1;
+	esp32s31_derive_local_mac(eth_mac, src);
+
+	dev_info(dev, "Ethernet MAC %pM (eFuse factory %pM)\n",
+		 eth_mac, factory);
+
+	return 0;
+}
 
 static int esp32s31_dwmac_init(struct platform_device *pdev, void *bsp_priv)
 {
@@ -90,6 +156,16 @@ static int esp32s31_dwmac_probe(struct platform_device *pdev)
 	plat_dat = devm_stmmac_probe_config_dt(pdev, stmmac_res.mac);
 	if (IS_ERR(plat_dat))
 		return PTR_ERR(plat_dat);
+
+	if (!is_valid_ether_addr(stmmac_res.mac)) {
+		rc = esp32s31_dwmac_mac_from_efuse(&pdev->dev, stmmac_res.mac);
+		if (rc == -EPROBE_DEFER)
+			return rc;
+		if (rc)
+			dev_warn(&pdev->dev,
+				 "eFuse MAC unavailable (%d), stmmac will use a random address\n",
+				 rc);
+	}
 
 	dwmac = devm_kzalloc(&pdev->dev, sizeof(*dwmac), GFP_KERNEL);
 	if (!dwmac)
