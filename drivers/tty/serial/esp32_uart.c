@@ -7,6 +7,8 @@
 #include <linux/delay.h>
 #include <linux/io.h>
 #include <linux/irq.h>
+#include <linux/math.h>
+#include <linux/math64.h>
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/platform_device.h>
@@ -15,6 +17,8 @@
 #include <linux/slab.h>
 #include <linux/tty_flip.h>
 #include <asm/serial.h>
+
+#include "esp32_uart.h"
 
 #define DRIVER_NAME	"esp32-uart"
 #define DEV_NAME	"ttyS"
@@ -380,33 +384,62 @@ static void esp32_uart_shutdown(struct uart_port *port)
 	clk_disable_unprepare(sport->clk);
 }
 
+int esp32_uart_calc_baud(u32 uartclk, u32 baud, u32 clkdiv_mask, bool has_clkconf,
+			 struct esp32_uart_baud *out)
+{
+	u64 clk_div;
+	u32 div, sclk_div = 0, frag;
+
+	if (!out || !baud || !uartclk || !clkdiv_mask)
+		return -EINVAL;
+
+	if (has_clkconf) {
+		u32 source_div;
+
+		source_div = DIV64_U64_ROUND_UP(uartclk,
+					       (u64)clkdiv_mask * baud);
+		if (!source_div ||
+		    source_div > FIELD_MAX(ESP32S3_UART_SCLK_DIV_NUM) + 1)
+			return -ERANGE;
+
+		clk_div = div64_u64((u64)uartclk * 16,
+				    (u64)baud * source_div);
+		sclk_div = source_div - 1;
+	} else {
+		clk_div = div_u64((u64)uartclk * 16, baud);
+	}
+
+	if (clk_div < 16 || clk_div >> 4 > clkdiv_mask)
+		return -ERANGE;
+
+	div = clk_div >> 4;
+	frag = clk_div & FIELD_MAX(UART_CLKDIV_FRAG);
+
+	out->div = div;
+	out->frag = frag;
+	out->sclk_div = sclk_div;
+	return 0;
+}
+EXPORT_SYMBOL_GPL(esp32_uart_calc_baud);
+
 static bool esp32_uart_set_baud(struct uart_port *port, u32 baud)
 {
-	u32 sclk = port->uartclk;
-	u32 div = sclk / baud;
+	const struct esp32_uart_variant *variant = port_variant(port);
+	struct esp32_uart_baud calc;
 
-	if (port_variant(port)->has_clkconf) {
-		u32 sclk_div = div / port_variant(port)->clkdiv_mask;
+	if (esp32_uart_calc_baud(port->uartclk, baud, variant->clkdiv_mask,
+				 variant->has_clkconf, &calc))
+		return false;
 
-		if (div > port_variant(port)->clkdiv_mask) {
-			sclk /= (sclk_div + 1);
-			div = sclk / baud;
-		}
+	if (variant->has_clkconf)
 		esp32_uart_write(port, ESP32S3_UART_CLK_CONF_REG,
-				 FIELD_PREP(ESP32S3_UART_SCLK_DIV_NUM, sclk_div) |
+				 FIELD_PREP(ESP32S3_UART_SCLK_DIV_NUM, calc.sclk_div) |
 				 ESP32S3_UART_CLK_CONF_DEFAULT);
-	}
 
-	if (div <= port_variant(port)->clkdiv_mask) {
-		u32 frag = (sclk * 16) / baud - div * 16;
-
-		esp32_uart_write(port, UART_CLKDIV_REG,
-				 div | FIELD_PREP(UART_CLKDIV_FRAG, frag));
-		esp32_uart_sync_regs(port);
-		return true;
-	}
-
-	return false;
+	esp32_uart_write(port, UART_CLKDIV_REG,
+			 calc.div | FIELD_PREP(UART_CLKDIV_FRAG, calc.frag));
+	esp32_uart_sync_regs(port);
+	return true;
 }
 
 static void esp32_uart_set_termios(struct uart_port *port,
@@ -422,7 +455,7 @@ static void esp32_uart_set_termios(struct uart_port *port,
 	termios->c_cflag &= ~CMSPAR;
 
 	if (port_variant(port)->has_clkconf)
-		max_div *= FIELD_MAX(ESP32S3_UART_SCLK_DIV_NUM);
+		max_div *= FIELD_MAX(ESP32S3_UART_SCLK_DIV_NUM) + 1;
 
 	baud = uart_get_baud_rate(port, termios, old,
 				  port->uartclk / max_div,
