@@ -411,8 +411,17 @@ static const char * const esp32s31_usb_otghs_bus_parents[] = { "xtal" };
 static const char * const esp32s31_usb_otghs_phyref_parents[] = { "xtal" };
 static const char * const esp32s31_apb_parents[] = { "apb" };
 
+static const u16 esp32s31_apb_parent_ids[] = {
+	ESP_S31_CLK_APB,
+};
+
 static const u16 esp32s31_mpll_parent_ids[] = {
 	ESP_S31_CLK_MPLL,
+};
+
+static const u16 esp32s31_i2c_parent_ids[] = {
+	ESP32S31_CLK_PARENT_FW,
+	ESP_S31_CLK_RC_FAST,
 };
 
 static const struct esp_clk_desc esp32s31_clk_descs[] = {
@@ -420,6 +429,8 @@ static const struct esp_clk_desc esp32s31_clk_descs[] = {
 		.name = "iomux_apb",
 		.reg = ESP32S31_HP_CLKRST_IOMUX_CTRL0,
 		.gate = ESP32S31_IOMUX_I2C_APB_CLK_EN,
+		.parent_ids = esp32s31_apb_parent_ids,
+		.num_parents = ARRAY_SIZE(esp32s31_apb_parent_ids),
 	},
 	/*
 	 * Gate only. The register's source select and divider are left at their
@@ -434,6 +445,8 @@ static const struct esp_clk_desc esp32s31_clk_descs[] = {
 		.name = "i2c0_apb",
 		.reg = ESP32S31_HP_CLKRST_I2C0_CTRL0,
 		.gate = ESP32S31_IOMUX_I2C_APB_CLK_EN,
+		.parent_ids = esp32s31_apb_parent_ids,
+		.num_parents = ARRAY_SIZE(esp32s31_apb_parent_ids),
 	},
 	[ESP_S31_CLK_I2C0] = {
 		.name = "i2c0",
@@ -443,12 +456,15 @@ static const struct esp_clk_desc esp32s31_clk_descs[] = {
 		.frac = ESP32S31_I2C_CLK_DIV_FRAC,
 		.mux = ESP32S31_IOMUX_I2C_CLK_SRC_SEL,
 		.parents = esp32s31_i2c_parents,
+		.parent_ids = esp32s31_i2c_parent_ids,
 		.num_parents = ARRAY_SIZE(esp32s31_i2c_parents),
 	},
 	[ESP_S31_CLK_I2C1_APB] = {
 		.name = "i2c1_apb",
 		.reg = ESP32S31_HP_CLKRST_I2C1_CTRL0,
 		.gate = ESP32S31_IOMUX_I2C_APB_CLK_EN,
+		.parent_ids = esp32s31_apb_parent_ids,
+		.num_parents = ARRAY_SIZE(esp32s31_apb_parent_ids),
 	},
 	[ESP_S31_CLK_I2C1] = {
 		.name = "i2c1",
@@ -458,6 +474,7 @@ static const struct esp_clk_desc esp32s31_clk_descs[] = {
 		.frac = ESP32S31_I2C_CLK_DIV_FRAC,
 		.mux = ESP32S31_IOMUX_I2C_CLK_SRC_SEL,
 		.parents = esp32s31_i2c_parents,
+		.parent_ids = esp32s31_i2c_parent_ids,
 		.num_parents = ARRAY_SIZE(esp32s31_i2c_parents),
 	},
 	[ESP_S31_CLK_EMAC_SYS] = {
