@@ -36,7 +36,9 @@
 #define ESP_S31_CLK_PCNT0_APB	11
 /* PCNT1 APB bus clock (HP_SYS_CLKRST PCNT_CTRL0) */
 #define ESP_S31_CLK_PCNT1_APB	12
+/* SDMMC bus interface clock (HP_SYS_CLKRST SDIO_HOST_CTRL0) */
+#define ESP_S31_CLK_SDMMC_BIU	13
 
-#define ESP_S31_CLK_NUM		13
+#define ESP_S31_CLK_NUM		14
 
 #endif /* ESP32S31_CLOCK_H */
