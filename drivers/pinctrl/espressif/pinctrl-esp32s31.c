@@ -150,8 +150,7 @@ enum esp32s31_owner {
  * port until reset.
  *
  * The two CNNT subsystems each have a DED_SEL bit in the CNNT control
- * register. Only GMAC has a function in the table; an SDIO function added
- * later names S31_OWNER_CNNT_SDIO the same way.
+ * register. GMAC and SDIO functions name their corresponding owners.
  */
 static const struct esp_pad_owner esp32s31_owners[] = {
 	[S31_OWNER_USB_JTAG] = {
@@ -240,6 +239,9 @@ static const struct esp_pin_function esp32s31_functions[] = {
 	[ESP_FUNC_S31_PCNT1_U3_CTRL_CH0_ID] = S31_PCNT_IN(PCNT1_CTRL_CH0_IN3_IDX),
 	[ESP_FUNC_S31_PCNT1_U3_CTRL_CH1_ID] = S31_PCNT_IN(PCNT1_CTRL_CH1_IN3_IDX),
 #undef S31_PCNT_IN
+	[ESP_FUNC_S31_SDMMC_ID] = { ESP_FUNC_NONE, ESP_FUNC_NONE,
+				    ESP_FUNC_NONE,
+				    ESP_OWNER(S31_OWNER_CNNT_SDIO) },
 };
 
 static int esp_s31_matrix_set_in(struct esp_pinctrl *epctl, u32 gpio, u32 signal)

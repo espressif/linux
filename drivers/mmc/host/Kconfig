@@ -808,6 +808,20 @@ config MMC_DW_PLTFM
 
 	  If unsure, say Y.
 
+config MMC_DW_ESP32S31
+	tristate "ESP32-S31 extensions for Synopsys DW Memory Card Interface"
+	depends on ARCH_ESPRESSIF || COMPILE_TEST
+	depends on OF
+	select MMC_DW
+	select MMC_DW_PLTFM
+	help
+	  This selects the platform glue for the DesignWare Mobile Storage
+	  Host Controller integrated in the ESP32-S31.
+	  It handles the SoC-specific clock, reset and controller SRAM power
+	  sequencing required by this integration.
+
+	  If unsure, say N.
+
 config MMC_DW_BLUEFIELD
 	tristate "BlueField specific extensions for Synopsys DW Memory Card Interface"
 	depends on MMC_DW
