@@ -1,0 +1,66 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/counter/esp,esp-pcnt.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Espressif Pulse Counter
+
+maintainers:
+  - Mao Shengrong <maoshengrong@espressif.com>
+
+description: |
+  Pulse counter (PCNT) on Espressif SoCs. Compatible strings are
+  SoC-specific. ESP32-S31 has two instances of four 16-bit units. A
+  unit can count pulses or decode quadrature on two channels. Pads are
+  assigned through pinctrl; one function id per matrix input. Units
+  without a board-level pinctrl route have no input.
+
+properties:
+  compatible:
+    enum:
+      - esp,esp32s31-pcnt
+
+  reg:
+    maxItems: 1
+
+  interrupts:
+    maxItems: 1
+
+  clocks:
+    maxItems: 1
+
+  clock-names:
+    const: apb
+
+  resets:
+    maxItems: 1
+
+  pinctrl-0: true
+  pinctrl-names:
+    const: default
+
+required:
+  - compatible
+  - reg
+  - interrupts
+  - clocks
+  - clock-names
+  - resets
+
+additionalProperties: false
+
+examples:
+  - |
+    #include <dt-bindings/clock/esp32s31.h>
+    #include <dt-bindings/interrupt-controller/irq.h>
+    #include <dt-bindings/reset/esp32s31.h>
+
+    pcnt0: counter@20389000 {
+        compatible = "esp,esp32s31-pcnt";
+        reg = <0x20389000 0x100>;
+        interrupts = <114 IRQ_TYPE_LEVEL_HIGH>;
+        clocks = <&clk ESP_S31_CLK_PCNT0_APB>;
+        clock-names = "apb";
+        resets = <&rst ESP_S31_RST_PCNT0>;
+    };

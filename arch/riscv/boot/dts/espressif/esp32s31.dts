@@ -39,6 +39,13 @@
 		clock-frequency = <500000000>;
 	};
 
+	/* HP APB, 53.333 MHz (U-Boot: CPLL 320 / SYS /3 / APB /2). */
+	apb_clk: clock-apb {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <53333333>;
+	};
+
 	chosen {
 		bootargs =
 		"earlycon=sbi console=ttyS0 root=mtd:rootfs rootfstype=cramfs ro swiotlb=128";
@@ -220,8 +227,8 @@
 			clk: clock-controller {
 				compatible = "esp,esp32s31-clk";
 				#clock-cells = <1>;
-				clocks = <&xtal_clk>, <&mpll_clk>;
-				clock-names = "xtal", "mpll";
+				clocks = <&xtal_clk>, <&mpll_clk>, <&apb_clk>;
+				clock-names = "xtal", "mpll", "apb";
 				esp,cnnt-sys = <&cnnt_sys>;
 			};
 
@@ -327,6 +334,28 @@
 					reset-deassert-us = <500000>;
 				};
 			};
+		};
+
+		pcnt0: counter@20389000 {
+			compatible = "esp,esp32s31-pcnt";
+			reg = <0x20389000 0x100>;
+			interrupt-parent = <&intmtx>;
+			interrupts = <114 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&clk ESP_S31_CLK_PCNT0_APB>;
+			clock-names = "apb";
+			resets = <&rst ESP_S31_RST_PCNT0>;
+			status = "disabled";
+		};
+
+		pcnt1: counter@2039d000 {
+			compatible = "esp,esp32s31-pcnt";
+			reg = <0x2039d000 0x100>;
+			interrupt-parent = <&intmtx>;
+			interrupts = <115 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&clk ESP_S31_CLK_PCNT1_APB>;
+			clock-names = "apb";
+			resets = <&rst ESP_S31_RST_PCNT1>;
+			status = "disabled";
 		};
 
 		systimer: timer@20399000 {
