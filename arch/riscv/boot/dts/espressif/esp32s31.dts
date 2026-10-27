@@ -24,6 +24,7 @@
 	aliases {
 		ethernet0 = &emac;
 		i2c0 = &i2c0;
+		mmc0 = &sdmmc;
 		serial0 = &uart0;
 	};
 
@@ -186,6 +187,27 @@
 					bias-disable;
 					drive-strength = <20>;
 				};
+
+				sdmmc_data_pins: sdmmc-data-pins {
+					pinmux =
+						<ESP_PINMUX(20, ESP_FUNC_S31_SDMMC_ID)>,
+						<ESP_PINMUX(21, ESP_FUNC_S31_SDMMC_ID)>,
+						<ESP_PINMUX(22, ESP_FUNC_S31_SDMMC_ID)>,
+						<ESP_PINMUX(23, ESP_FUNC_S31_SDMMC_ID)>,
+						<ESP_PINMUX(25, ESP_FUNC_S31_SDMMC_ID)>;
+
+					input-enable;
+					bias-pull-up;
+					drive-strength = <20>;
+				};
+
+				sdmmc_clk_pin: sdmmc-clk-pin {
+					pinmux =
+						<ESP_PINMUX(24, ESP_FUNC_S31_SDMMC_ID)>;
+
+					bias-disable;
+					drive-strength = <20>;
+				};
 			};
 		};
 
@@ -208,6 +230,30 @@
 			/* ETS_GPIO_INTR0..1_SOURCE = 61..62, one per bank */
 			interrupts = <61 IRQ_TYPE_LEVEL_HIGH>,
 				     <62 IRQ_TYPE_LEVEL_HIGH>;
+		};
+
+		sdmmc: mmc@20342000 {
+			compatible = "esp,esp32s31-dw-mshc";
+			reg = <0x20342000 0x1000>;
+			interrupt-parent = <&intmtx>;
+			interrupts = <3 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&clk ESP_S31_CLK_SDMMC_BIU>,
+				 <&mpll_clk>;
+			clock-names = "biu", "func_clk_src";
+			clock-frequency = <50000000>;
+			resets = <&rst ESP_S31_RST_SDMMC>;
+			reset-names = "reset";
+			esp,clkrst = <&sysctl>;
+			esp,cnnt-sys = <&cnnt_sys>;
+			dma-noncoherent;
+			fifo-depth = <512>;
+			bus-width = <4>;
+			/* SD Default Speed mode supports up to 25 MHz. */
+			max-frequency = <25000000>;
+			broken-cd;
+			disable-wp;
+			pinctrl-names = "default";
+			pinctrl-0 = <&sdmmc_data_pins>, <&sdmmc_clk_pin>;
 		};
 
 		/*

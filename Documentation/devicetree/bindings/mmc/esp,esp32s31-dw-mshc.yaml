@@ -1,0 +1,84 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/mmc/esp,esp32s31-dw-mshc.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Espressif ESP32-S31 DesignWare Mobile Storage Host Controller
+
+allOf:
+  - $ref: synopsys-dw-mshc-common.yaml#
+
+maintainers:
+  - Armando (Dou Yiwen) <douyiwen@espressif.com>
+
+properties:
+  compatible:
+    const: esp,esp32s31-dw-mshc
+
+  reg:
+    maxItems: 1
+
+  interrupts:
+    maxItems: 1
+
+  clocks:
+    items:
+      - description: Bus interface unit clock
+      - description: Functional clock source
+
+  clock-names:
+    items:
+      - const: biu
+      - const: func_clk_src
+
+  clock-frequency:
+    description:
+      Desired frequency of the DesignWare card interface unit input clock.
+      The driver derives this rate from func_clk_src using the ESP32-S31
+      functional clock divider.
+
+  esp,clkrst:
+    $ref: /schemas/types.yaml#/definitions/phandle
+    description:
+      System controller containing the SDMMC functional clock registers.
+
+  esp,cnnt-sys:
+    $ref: /schemas/types.yaml#/definitions/phandle
+    description:
+      Connectivity system controller containing SDMMC memory power controls.
+
+  dma-noncoherent: true
+
+required:
+  - compatible
+  - reg
+  - interrupts
+  - clocks
+  - clock-names
+  - clock-frequency
+  - resets
+  - reset-names
+  - esp,clkrst
+  - esp,cnnt-sys
+  - dma-noncoherent
+
+unevaluatedProperties: false
+
+examples:
+  - |
+    mmc@20342000 {
+        compatible = "esp,esp32s31-dw-mshc";
+        reg = <0x20342000 0x1000>;
+        interrupts = <3 4>;
+        clocks = <&clk 13>, <&mpll_clk>;
+        clock-names = "biu", "func_clk_src";
+        clock-frequency = <50000000>;
+        resets = <&rst 7>;
+        reset-names = "reset";
+        esp,clkrst = <&sysctl>;
+        esp,cnnt-sys = <&cnnt_sys>;
+        dma-noncoherent;
+        bus-width = <4>;
+        broken-cd;
+    };

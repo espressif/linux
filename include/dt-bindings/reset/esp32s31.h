@@ -24,7 +24,9 @@
 #define ESP_S31_RST_PCNT0	5
 /* PCNT1 reset (HP_SYS_CLKRST PCNT_CTRL0) */
 #define ESP_S31_RST_PCNT1	6
+/* SDMMC controller reset (CNNT_SYS HP_SDMMC_CTRL) */
+#define ESP_S31_RST_SDMMC	7
 
-#define ESP_S31_RST_NUM		7
+#define ESP_S31_RST_NUM		8
 
 #endif /* ESP32S31_RESET_H */

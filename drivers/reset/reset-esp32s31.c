@@ -24,6 +24,7 @@
 
 /* Peripheral control registers in CNNT_SYS */
 #define ESP32S31_CNNT_HP_EMAC_CTRL	0x03c
+#define ESP32S31_CNNT_HP_SDMMC_CTRL	0x038
 
 /*
  * The reset bit shared between IO_MUX and I2C control registers.
@@ -40,6 +41,7 @@
 #define ESP32S31_USB_OTGHS_RST_EN	(BIT(29) | BIT(30) | BIT(31))
 #define ESP32S31_PCNT0_RST_EN		BIT(1)
 #define ESP32S31_PCNT1_RST_EN		BIT(4)
+#define ESP32S31_SDMMC_RST_EN		BIT(30)
 
 #define ESP32S31_RST_MAP_HP_SYS_CLKRST		0
 #define ESP32S31_RST_MAP_CNNT_SYS		1
@@ -81,6 +83,11 @@ static const struct esp_s31_rst_desc esp_s31_rst_descs[ESP_S31_RST_NUM] = {
 	[ESP_S31_RST_PCNT1] = {
 		.reg = ESP32S31_HP_CLKRST_PCNT_CTRL0,
 		.mask = ESP32S31_PCNT1_RST_EN,
+	},
+	[ESP_S31_RST_SDMMC] = {
+		.map_idx = ESP32S31_RST_MAP_CNNT_SYS,
+		.reg = ESP32S31_CNNT_HP_SDMMC_CTRL,
+		.mask = ESP32S31_SDMMC_RST_EN,
 	},
 };
 

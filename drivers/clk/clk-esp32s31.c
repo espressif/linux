@@ -25,6 +25,7 @@
 #define ESP32S31_HP_CLKRST_I2C1_CTRL0	0x0e0
 #define ESP32S31_HP_CLKRST_IOMUX_CTRL0	0x15c
 #define ESP32S31_HP_CLKRST_PCNT_CTRL0	0x138
+#define ESP32S31_HP_CLKRST_SDIO_HOST_CTRL0	0x0c0
 
 /* Peripheral control registers in CNNT_SYS */
 #define ESP32S31_CNNT_HP_EMAC_REF_CTRL	0x040
@@ -56,6 +57,9 @@
 
 #define ESP32S31_PCNT0_APB_CLK_EN	BIT(0)
 #define ESP32S31_PCNT1_APB_CLK_EN	BIT(3)
+
+/* HP_SYS_CLKRST SDIO host clock controls */
+#define ESP32S31_SDMMC_SYS_CLK_EN		BIT(0)
 
 /* HP_SYS_CLKRST USB_OTGHS_CTRL0 */
 #define ESP32S31_HP_CLKRST_USB_OTGHS_CTRL0	0x0ac
@@ -336,6 +340,11 @@ static const struct esp_clk_desc esp32s31_clk_descs[ESP_S31_CLK_NUM] = {
 		.gate = ESP32S31_PCNT1_APB_CLK_EN,
 		.parents = esp32s31_apb_parents,
 		.num_parents = ARRAY_SIZE(esp32s31_apb_parents),
+	},
+	[ESP_S31_CLK_SDMMC_BIU] = {
+		.name = "sdmmc_biu",
+		.reg = ESP32S31_HP_CLKRST_SDIO_HOST_CTRL0,
+		.gate = ESP32S31_SDMMC_SYS_CLK_EN,
 	},
 };
 
