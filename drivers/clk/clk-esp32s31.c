@@ -409,7 +409,6 @@ static const char * const esp32s31_emac_ref_parents[] = { "mpll" };
 static const char * const esp32s31_emac_ptp_parents[] = { "xtal" };
 static const char * const esp32s31_usb_otghs_bus_parents[] = { "xtal" };
 static const char * const esp32s31_usb_otghs_phyref_parents[] = { "xtal" };
-static const char * const esp32s31_apb_parents[] = { "apb" };
 
 static const u16 esp32s31_apb_parent_ids[] = {
 	ESP_S31_CLK_APB,
@@ -523,20 +522,22 @@ static const struct esp_clk_desc esp32s31_clk_descs[] = {
 		.name = "pcnt0_apb",
 		.reg = ESP32S31_HP_CLKRST_PCNT_CTRL0,
 		.gate = ESP32S31_PCNT0_APB_CLK_EN,
-		.parents = esp32s31_apb_parents,
-		.num_parents = ARRAY_SIZE(esp32s31_apb_parents),
+		.parent_ids = esp32s31_apb_parent_ids,
+		.num_parents = ARRAY_SIZE(esp32s31_apb_parent_ids),
 	},
 	[ESP_S31_CLK_PCNT1_APB] = {
 		.name = "pcnt1_apb",
 		.reg = ESP32S31_HP_CLKRST_PCNT_CTRL0,
 		.gate = ESP32S31_PCNT1_APB_CLK_EN,
-		.parents = esp32s31_apb_parents,
-		.num_parents = ARRAY_SIZE(esp32s31_apb_parents),
+		.parent_ids = esp32s31_apb_parent_ids,
+		.num_parents = ARRAY_SIZE(esp32s31_apb_parent_ids),
 	},
 	[ESP_S31_CLK_SDMMC_BIU] = {
 		.name = "sdmmc_biu",
 		.reg = ESP32S31_HP_CLKRST_SDIO_HOST_CTRL0,
 		.gate = ESP32S31_SDMMC_SYS_CLK_EN,
+		.parent_ids = esp32s31_apb_parent_ids,
+		.num_parents = ARRAY_SIZE(esp32s31_apb_parent_ids),
 	},
 };
 
