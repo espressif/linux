@@ -58,7 +58,8 @@
 			cpu0_intc: interrupt-controller {
 				#interrupt-cells = <1>;
 				interrupt-controller;
-				compatible = "riscv,cpu-intc";
+				compatible = "esp,esp32s31-cpu-intc",
+					     "riscv,cpu-intc";
 			};
 		};
 	};

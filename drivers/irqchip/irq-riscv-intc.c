@@ -18,6 +18,7 @@
 #include <linux/of.h>
 #include <linux/smp.h>
 #include <linux/soc/andes/irq.h>
+#include <linux/soc/espressif/irq.h>
 
 #include <asm/hwcap.h>
 
@@ -63,6 +64,22 @@ static void riscv_intc_irq_unmask(struct irq_data *d)
 		csr_set(CSR_IEH, BIT(d->hwirq - BITS_PER_LONG));
 	else
 		csr_set(CSR_IE, BIT(d->hwirq));
+}
+
+/*
+ * Causes 32-47 are chained to the ESP32-S31 CLIC irqchip, which controls
+ * their enable state through the memory-mapped clicintie registers.
+ */
+static void esp32s31_intc_irq_mask(struct irq_data *d)
+{
+	if (d->hwirq < ESP32S31_CLIC_CAUSE_BASE)
+		riscv_intc_irq_mask(d);
+}
+
+static void esp32s31_intc_irq_unmask(struct irq_data *d)
+{
+	if (d->hwirq < ESP32S31_CLIC_CAUSE_BASE)
+		riscv_intc_irq_unmask(d);
 }
 
 static void andes_intc_irq_mask(struct irq_data *d)
@@ -117,6 +134,13 @@ static struct irq_chip andes_intc_chip = {
 	.name		= "RISC-V INTC",
 	.irq_mask	= andes_intc_irq_mask,
 	.irq_unmask	= andes_intc_irq_unmask,
+	.irq_eoi	= riscv_intc_irq_eoi,
+};
+
+static struct irq_chip esp32s31_intc_chip = {
+	.name		= "ESP32-S31 INTC",
+	.irq_mask	= esp32s31_intc_irq_mask,
+	.irq_unmask	= esp32s31_intc_irq_unmask,
 	.irq_eoi	= riscv_intc_irq_eoi,
 };
 
@@ -241,6 +265,11 @@ static int __init riscv_intc_init(struct device_node *node,
 		riscv_intc_custom_base = ANDES_SLI_CAUSE_BASE;
 		riscv_intc_custom_nr_irqs = ANDES_RV_IRQ_LAST;
 		chip = &andes_intc_chip;
+	} else if (of_device_is_compatible(node,
+					   "esp,esp32s31-cpu-intc")) {
+		riscv_intc_custom_base = ESP32S31_CLIC_CAUSE_BASE;
+		riscv_intc_custom_nr_irqs = ESP32S31_CLIC_NR_CAUSES;
+		chip = &esp32s31_intc_chip;
 	}
 
 	return riscv_intc_init_common(of_fwnode_handle(node), chip);
@@ -248,6 +277,8 @@ static int __init riscv_intc_init(struct device_node *node,
 
 IRQCHIP_DECLARE(riscv, "riscv,cpu-intc", riscv_intc_init);
 IRQCHIP_DECLARE(andes, "andestech,cpu-intc", riscv_intc_init);
+IRQCHIP_DECLARE(esp32s31, "esp,esp32s31-cpu-intc",
+		riscv_intc_init);
 
 #ifdef CONFIG_ACPI
 

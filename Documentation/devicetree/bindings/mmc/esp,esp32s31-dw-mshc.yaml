@@ -10,7 +10,7 @@ allOf:
   - $ref: synopsys-dw-mshc-common.yaml#
 
 maintainers:
-  - Armando (Dou Yiwen) <douyiwen@espressif.com>
+  - Dou Yiwen <douyiwen@espressif.com>
 
 properties:
   compatible:

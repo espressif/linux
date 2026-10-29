@@ -21,8 +21,9 @@
  * child of this domain. Peripherals reference INTMTX in DT;
  * INTMTX.alloc forwards to clic.alloc with the chosen slot.
  *
- * Scope limit: usable slots are 16-31 (intc covers BITS_PER_LONG = 32
- * hwirqs on RV32). Sources 32-47 need a riscv-intc extension.
+ * All external slots 16-47 are usable.  The riscv-intc parent exposes
+ * causes 0-31 as standard interrupts and 32-47 as an ESP32-S31 custom
+ * range; this irqchip controls their memory-mapped state.
  */
 
 #include <linux/io.h>
@@ -54,7 +55,7 @@
 #define CLIC_CTL_MAX_PRIO	0xE0U
 
 #define CLIC_EXT_FIRST		16U
-#define CLIC_EXT_LAST		31U
+#define CLIC_EXT_LAST		47U
 #define CLIC_EXT_COUNT		(CLIC_EXT_LAST - CLIC_EXT_FIRST + 1U)
 
 struct esp_clic {
