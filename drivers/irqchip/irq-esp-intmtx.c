@@ -12,7 +12,7 @@
  * This driver hangs underneath irq-esp-clic in the irq-domain
  * hierarchy. DT peripherals reference INTMTX with their ETS source
  * number + trigger type; alloc picks a free CLIC slot from a bitmap
- * (slots 16-31 — limited by riscv-intc's 32-hwirq cap on RV32),
+ * (external slots 16-47),
  * programs the matrix, and forwards the request to the CLIC layer
  * with the slot number as parent hwirq. mask/unmask/set_type pass
  * through to the parent (CLIC) chip; INTMTX itself has no per-source
@@ -36,9 +36,9 @@
 #define INTMTX_SRC_REG(src)	((src) * 4U)
 #define INTMTX_SLOT_MASK	0x3FU
 
-/* Linux can use CLIC slots 16-31 today (irq-esp-clic limit). */
+/* External CLIC slots delegated to S-mode by OpenSBI. */
 #define CLIC_SLOT_FIRST		16U
-#define CLIC_SLOT_LAST		31U
+#define CLIC_SLOT_LAST		47U
 #define CLIC_SLOT_COUNT		(CLIC_SLOT_LAST - CLIC_SLOT_FIRST + 1U)
 
 /* Largest ETS source we'll accept from DT. The matrix has ~100 sources

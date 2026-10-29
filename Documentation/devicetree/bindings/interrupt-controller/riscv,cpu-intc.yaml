@@ -40,6 +40,9 @@ properties:
       - items:
           - const: andestech,cpu-intc
           - const: riscv,cpu-intc
+      - items:
+          - const: esp,esp32s31-cpu-intc
+          - const: riscv,cpu-intc
       - const: riscv,cpu-intc
 
   interrupt-controller: true

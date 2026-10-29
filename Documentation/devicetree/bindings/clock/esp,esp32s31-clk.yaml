@@ -12,7 +12,7 @@ description:
   HP_SYS_CLKRST, CNNT_SYS and LP_AON_CLKRST register blocks.
 
 maintainers:
-  - Armando Dou <douyiwen@espressif.com>
+  - Dou Yiwen <douyiwen@espressif.com>
 
 properties:
   compatible:

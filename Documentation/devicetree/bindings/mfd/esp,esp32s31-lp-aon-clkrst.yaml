@@ -12,7 +12,7 @@ description:
   controller.
 
 maintainers:
-  - Armando Dou <douyiwen@espressif.com>
+  - Dou Yiwen <douyiwen@espressif.com>
 
 properties:
   compatible:
