@@ -9239,6 +9239,29 @@ L:	linux-can@vger.kernel.org
 S:	Maintained
 F:	drivers/net/can/usb/esd_usb.c
 
+ESPRESSIF ESP32-S31 CLOCK DRIVER
+M:	Armando Dou <douyiwen@espressif.com>
+L:	linux-clk@vger.kernel.org
+S:	Maintained
+F:	Documentation/devicetree/bindings/clock/esp,esp32s31-clk.yaml
+F:	Documentation/devicetree/bindings/mfd/esp,esp32s31-lp-aon-clkrst.yaml
+F:	drivers/clk/clk-esp32s31.c
+F:	include/dt-bindings/clock/esp32s31.h
+
+ESPRESSIF ESP32-S31 RESET CONTROLLER
+M:	Armando Dou <douyiwen@espressif.com>
+L:	linux-riscv@lists.infradead.org
+S:	Maintained
+F:	drivers/reset/reset-esp32s31.c
+F:	include/dt-bindings/reset/esp32s31.h
+
+ESPRESSIF ESP32-S31 SDMMC DRIVER
+M:	Armando Dou <douyiwen@espressif.com>
+L:	linux-mmc@vger.kernel.org
+S:	Maintained
+F:	Documentation/devicetree/bindings/mmc/esp,esp32s31-dw-mshc.yaml
+F:	drivers/mmc/host/dw_mmc-esp32s31.c
+
 ESPRESSIF PULSE COUNTER (PCNT) DRIVER
 M:	Mao Shengrong <maoshengrong@espressif.com>
 L:	linux-iio@vger.kernel.org

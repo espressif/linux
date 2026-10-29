@@ -1,0 +1,56 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/clock/esp,esp32s31-clk.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Espressif ESP32-S31 clock controller
+
+description:
+  The ESP32-S31 clock controller reports the PLL and CPU clock trees inherited
+  from firmware and controls peripheral clock muxes, dividers and gates in the
+  HP_SYS_CLKRST, CNNT_SYS and LP_AON_CLKRST register blocks.
+
+maintainers:
+  - Armando Dou <douyiwen@espressif.com>
+
+properties:
+  compatible:
+    const: esp,esp32s31-clk
+
+  "#clock-cells":
+    const: 1
+    description:
+      The clock index is defined in
+      include/dt-bindings/clock/esp32s31.h.
+
+  clocks:
+    items:
+      - description: External crystal oscillator
+
+  clock-names:
+    items:
+      - const: xtal
+
+  esp,cnnt-sys:
+    $ref: /schemas/types.yaml#/definitions/phandle
+    description:
+      Phandle to the connectivity system controller register block.
+
+  esp,lp-aon-clkrst:
+    $ref: /schemas/types.yaml#/definitions/phandle
+    description:
+      Phandle to the low-power always-on clock and reset register block
+      containing the CPLL and MPLL divider configurations.
+
+required:
+  - compatible
+  - "#clock-cells"
+  - clocks
+  - clock-names
+  - esp,cnnt-sys
+  - esp,lp-aon-clkrst
+
+additionalProperties: false
+
+...

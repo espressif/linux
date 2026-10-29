@@ -34,19 +34,6 @@
 		clock-frequency = <40000000>;
 	};
 
-	mpll_clk: clock-mpll {
-		compatible = "fixed-clock";
-		#clock-cells = <0>;
-		clock-frequency = <500000000>;
-	};
-
-	/* HP APB, 53.333 MHz (U-Boot: CPLL 320 / SYS /3 / APB /2). */
-	apb_clk: clock-apb {
-		compatible = "fixed-clock";
-		#clock-cells = <0>;
-		clock-frequency = <53333333>;
-	};
-
 	chosen {
 		bootargs =
 		"earlycon=sbi console=ttyS0 root=mtd:rootfs rootfstype=cramfs ro swiotlb=128";
@@ -66,7 +53,7 @@
 			riscv,isa-extensions = "i", "m", "a", "c", "zicsr",
 					       "zifencei";
 			mmu-type = "riscv,sv32";
-			clock-frequency = <320000000>;
+			clocks = <&clk ESP_S31_CLK_CPU>;
 
 			cpu0_intc: interrupt-controller {
 				#interrupt-cells = <1>;
@@ -238,7 +225,7 @@
 			interrupt-parent = <&intmtx>;
 			interrupts = <3 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&clk ESP_S31_CLK_SDMMC_BIU>,
-				 <&mpll_clk>;
+				 <&clk ESP_S31_CLK_MPLL>;
 			clock-names = "biu", "func_clk_src";
 			clock-frequency = <50000000>;
 			resets = <&rst ESP_S31_RST_SDMMC>;
@@ -273,9 +260,10 @@
 			clk: clock-controller {
 				compatible = "esp,esp32s31-clk";
 				#clock-cells = <1>;
-				clocks = <&xtal_clk>, <&mpll_clk>, <&apb_clk>;
-				clock-names = "xtal", "mpll", "apb";
+				clocks = <&xtal_clk>;
+				clock-names = "xtal";
 				esp,cnnt-sys = <&cnnt_sys>;
+				esp,lp-aon-clkrst = <&lp_aon_clkrst>;
 			};
 
 			rst: reset-controller {
@@ -293,6 +281,11 @@
 		cnnt_sys: syscon@20359000 {
 			compatible = "esp,esp32s31-cnnt-sys", "syscon";
 			reg = <0x20359000 0x100>;
+		};
+
+		lp_aon_clkrst: syscon@20701000 {
+			compatible = "esp,esp32s31-lp-aon-clkrst", "syscon";
+			reg = <0x20701000 0x400>;
 		};
 
 		efuse: syscon@20715000 {
@@ -348,7 +341,7 @@
 				 <&clk ESP_S31_CLK_EMAC_PTP>;
 			clock-names = "stmmaceth", "ref", "ptp_ref";
 			assigned-clocks = <&clk ESP_S31_CLK_EMAC_REF>;
-			assigned-clock-parents = <&mpll_clk>;
+			assigned-clock-parents = <&clk ESP_S31_CLK_MPLL>;
 			resets = <&rst ESP_S31_RST_EMAC>;
 			reset-names = "stmmaceth";
 			esp,cnnt-sys = <&cnnt_sys>;
