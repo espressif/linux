@@ -1606,6 +1606,17 @@ config SERIAL_ESP32
 	    earlycon=esp32s3uart,mmio32,0x60000000,115200n8,40000000
 	    earlycon=esp32uart,mmio32,0x3ff40000,115200n8
 
+config SERIAL_ESP32_KUNIT_TEST
+	tristate "KUnit test for the ESP32 UART baud divider" if !KUNIT_ALL_TESTS
+	depends on KUNIT
+	depends on SERIAL_ESP32
+	default KUNIT_ALL_TESTS
+	help
+	  This builds unit tests for the ESP UART.
+
+	  For more information on KUnit and unit tests in general, please refer
+	  to the KUnit documentation in Documentation/dev-tools/kunit/.
+
 config SERIAL_ESP32_ACM
 	tristate "Espressif ESP32 USB ACM gadget support"
 	depends on XTENSA_PLATFORM_ESP32 || (COMPILE_TEST && OF)
