@@ -34,11 +34,6 @@
 		clock-frequency = <40000000>;
 	};
 
-	chosen {
-		bootargs =
-		"earlycon=sbi console=ttyS0 root=mtd:rootfs rootfstype=cramfs ro swiotlb=128";
-	};
-
 	cpus {
 		#address-cells = <1>;
 		#size-cells = <0>;
