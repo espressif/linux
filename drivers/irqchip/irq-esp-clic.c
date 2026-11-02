@@ -114,11 +114,47 @@ static int esp_clic_set_type(struct irq_data *d, unsigned int type)
 	return 0;
 }
 
+#ifdef CONFIG_SMP
+static int esp_clic_set_affinity(struct irq_data *d,
+				 const struct cpumask *mask_val, bool force)
+{
+	void __iomem *bank;
+	unsigned int cpu, old;
+	u8 attr;
+
+	cpu = force ? cpumask_first(mask_val) :
+		cpumask_first_and(mask_val, cpu_online_mask);
+	if (cpu >= nr_cpu_ids)
+		return -EINVAL;
+
+	old = esp_clic_target_cpu(d);
+	if (old == cpu)
+		return IRQ_SET_MASK_OK_DONE;
+
+	writeb_relaxed(0, esp_clic_bank_for(clic, old) +
+			  CLIC_INTIP_OFF(d->hwirq));
+
+	irq_data_update_effective_affinity(d, cpumask_of(cpu));
+
+	bank = esp_clic_bank_for(clic, cpu);
+	attr = readb_relaxed(bank + CLIC_INTATTR_OFF(d->hwirq));
+	attr = (attr & ~CLIC_ATTR_TRIG_MASK) | CLIC_ATTR_TRIG_LEVEL;
+	writeb_relaxed(attr, bank + CLIC_INTATTR_OFF(d->hwirq));
+	writeb_relaxed(CLIC_CTL_MAX_PRIO, bank + CLIC_INTCTL_OFF(d->hwirq));
+	writeb_relaxed(0, bank + CLIC_INTIP_OFF(d->hwirq));
+
+	return IRQ_SET_MASK_OK_DONE;
+}
+#endif /* CONFIG_SMP */
+
 static struct irq_chip esp_clic_chip = {
 	.name		= "esp-clic",
 	.irq_mask	= esp_clic_mask,
 	.irq_unmask	= esp_clic_unmask,
 	.irq_set_type	= esp_clic_set_type,
+#ifdef CONFIG_SMP
+	.irq_set_affinity = esp_clic_set_affinity,
+#endif
 	.flags		= IRQCHIP_SKIP_SET_WAKE,
 };
 

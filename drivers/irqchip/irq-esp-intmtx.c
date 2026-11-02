@@ -4,6 +4,7 @@
  */
 
 #include <linux/bitmap.h>
+#include <linux/cpumask.h>
 #include <linux/io.h>
 #include <linux/irq.h>
 #include <linux/irqchip.h>
@@ -76,6 +77,74 @@ static void esp_intmtx_free_slot(struct esp_intmtx *priv, unsigned int slot)
 		return;
 	clear_bit(slot - CLIC_SLOT_FIRST, priv->slots_in_use);
 }
+
+#ifdef CONFIG_SMP
+/*
+ * This is single-target routing hardware feeding a level source: only one
+ * window may hold a source's slot at a time, and the receiving bank must be
+ * ready before the source is pointed at it. Unroute the old window, let the
+ * CLIC layer reprogram the new bank's attr/ctl (irq_chip_set_affinity_parent,
+ * which also moves the effective-affinity record we both read), then route
+ * the new window -- never the reverse order. The mask/unmask bracketing the
+ * whole move mirrors __irq_move_irq(): masked while no window is correctly
+ * configured, unmasked again only once the new one is. That bracket is also
+ * what makes the relaxed writes below safe without barriers between the INTMTX
+ * and CLIC register files: clicintie is 0 for the whole sequence, so no
+ * ordering between a route and a bank write can expose a deliverable source.
+ *
+ * irqd_irq_masked() rather than __irq_move_irq()'s irqd_irq_disabled() is the
+ * right predicate here: what has to be restored is the hardware enable this
+ * function cleared, and that is exactly what the masked state records.
+ */
+static int esp_intmtx_set_affinity(struct irq_data *d,
+				   const struct cpumask *mask_val, bool force)
+{
+	struct esp_intmtx *priv = irq_data_get_irq_chip_data(d);
+	irq_hw_number_t src = d->hwirq;
+	unsigned long flags;
+	unsigned int cpu, old;
+	bool was_masked;
+	int ret;
+
+	cpu = force ? cpumask_first(mask_val) :
+		      cpumask_first_and(mask_val, cpu_online_mask);
+	if (cpu >= nr_cpu_ids)
+		return -EINVAL;
+
+	old = cpumask_first(irq_data_get_effective_affinity_mask(d));
+	if (old == cpu)
+		return IRQ_SET_MASK_OK_DONE;
+
+	was_masked = irqd_irq_masked(d);
+	if (!was_masked)
+		irq_chip_mask_parent(d);
+
+	raw_spin_lock_irqsave(&priv->lock, flags);
+	writel_relaxed(0, priv->base + INTMTX_WINDOW(old) + INTMTX_SRC_REG(src));
+	raw_spin_unlock_irqrestore(&priv->lock, flags);
+
+	ret = irq_chip_set_affinity_parent(d, cpumask_of(cpu), force);
+	if (ret < 0) {
+		raw_spin_lock_irqsave(&priv->lock, flags);
+		writel_relaxed(priv->src_to_slot[src],
+			       priv->base + INTMTX_WINDOW(old) + INTMTX_SRC_REG(src));
+		raw_spin_unlock_irqrestore(&priv->lock, flags);
+		if (!was_masked)
+			irq_chip_unmask_parent(d);
+		return ret;
+	}
+
+	raw_spin_lock_irqsave(&priv->lock, flags);
+	writel_relaxed(priv->src_to_slot[src],
+		       priv->base + INTMTX_WINDOW(cpu) + INTMTX_SRC_REG(src));
+	raw_spin_unlock_irqrestore(&priv->lock, flags);
+
+	if (!was_masked)
+		irq_chip_unmask_parent(d);
+
+	return IRQ_SET_MASK_OK_DONE;
+}
+#endif /* CONFIG_SMP */
 
 static const struct esp_intmtx_percpu_src *
 esp_intmtx_find_percpu_src(irq_hw_number_t src)
@@ -177,7 +246,10 @@ static struct irq_chip esp_intmtx_chip = {
 	.irq_mask	= irq_chip_mask_parent,
 	.irq_unmask	= irq_chip_unmask_parent,
 	.irq_set_type	= irq_chip_set_type_parent,
-	.flags		= IRQCHIP_SKIP_SET_WAKE,
+#ifdef CONFIG_SMP
+	.irq_set_affinity = esp_intmtx_set_affinity,
+#endif
+	.flags		= IRQCHIP_SKIP_SET_WAKE | IRQCHIP_AFFINITY_PRE_STARTUP,
 };
 
 static int esp_intmtx_domain_alloc(struct irq_domain *domain,
@@ -225,6 +297,8 @@ static int esp_intmtx_domain_alloc(struct irq_domain *domain,
 	irq_domain_set_info(domain, virq, src, &esp_intmtx_chip,
 			    priv, handle_level_irq, NULL, NULL);
 
+	irq_data_update_effective_affinity(irq_get_irq_data(virq), cpumask_of(0));
+
 	parent_fwspec.fwnode = domain->parent->fwnode;
 	parent_fwspec.param_count = 2;
 	parent_fwspec.param[0] = slot;
@@ -253,7 +327,7 @@ static void esp_intmtx_domain_free(struct irq_domain *domain,
 	struct esp_intmtx *priv = domain->host_data;
 	struct irq_data *d = irq_domain_get_irq_data(domain, virq);
 	unsigned long flags;
-	unsigned int src, slot;
+	unsigned int src, slot, cpu;
 
 	if (!d)
 		return;
@@ -262,11 +336,14 @@ static void esp_intmtx_domain_free(struct irq_domain *domain,
 	if (src > INTMTX_MAX_SRC)
 		return;
 
+	/* Routing lives wherever this irq's effective affinity currently points. */
+	cpu = cpumask_first(irq_data_get_effective_affinity_mask(d));
+
 	raw_spin_lock_irqsave(&priv->lock, flags);
 	slot = priv->src_to_slot[src];
 	/* Per-core routes are per hart and removed as each hart disables them. */
 	if (!esp_intmtx_find_percpu_src(src))
-		writel_relaxed(0, priv->base + INTMTX_WINDOW(0) + INTMTX_SRC_REG(src));
+		writel_relaxed(0, priv->base + INTMTX_WINDOW(cpu) + INTMTX_SRC_REG(src));
 	priv->src_to_slot[src] = 0;
 	esp_intmtx_free_slot(priv, slot);
 	raw_spin_unlock_irqrestore(&priv->lock, flags);

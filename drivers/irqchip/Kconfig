@@ -665,11 +665,7 @@ config ESP_CLIC
 	select RISCV_ESP_CLIC_TRAP_QUIRK
 	select GENERIC_IRQ_EFFECTIVE_AFF_MASK if SMP
 	help
-	  Drive the S-mode view of the ESP32-S31's CLIC (0x10A00000)
-	  so Linux can take external peripheral interrupts. OpenSBI is
-	  responsible for delegating the CLIC external sources to S-mode
-	  at boot; this driver owns enable/mask/priority/trigger from
-	  there.
+	  Enable CLIC support for Espressif SOCs
 
 	  If unsure, say N.
 
