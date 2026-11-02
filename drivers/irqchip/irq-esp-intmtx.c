@@ -37,6 +37,7 @@ struct esp_intmtx_percpu_src {
 };
 
 static const struct esp_intmtx_percpu_src esp_intmtx_percpu_srcs[] = {
+	{ .sources = { 33U, 34U } },	/* systimer TARGETn alarm */
 	{ .sources = { 65U, 66U } },	/* CPU_INT_FROM_CPU_n doorbell (IPIs) */
 };
 

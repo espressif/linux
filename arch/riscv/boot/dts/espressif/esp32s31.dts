@@ -412,9 +412,15 @@
 			compatible = "esp,esp32s31-systimer";
 			reg = <0x20399000 0x100>;
 			clock-frequency = <16000000>;
+			/*
+			 * TARGETn's alarm is ETS source 33 + n, a per-core
+			 * source: intmtx routes hart n's into the same reserved
+			 * CLIC slot in that hart's own window, so one percpu
+			 * interrupt serves every CPU; the hart-0 source names the
+			 * family.
+			 */
 			interrupt-parent = <&intmtx>;
 			interrupts = <33 IRQ_TYPE_LEVEL_HIGH>;
-			interrupt-names = "target0";
 		};
 
 		usb_phy: usb-phy@20380000 {
