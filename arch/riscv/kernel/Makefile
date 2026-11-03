@@ -12,6 +12,10 @@ endif
 CFLAGS_syscall_table.o	+= $(call cc-disable-warning, override-init)
 CFLAGS_compat_syscall_table.o += $(call cc-disable-warning, override-init)
 
+ifdef CONFIG_XIP_KERNEL
+CFLAGS_process.o += $(call cc-option,-mno-relax)
+endif
+
 ifdef CONFIG_KEXEC_CORE
 AFLAGS_kexec_relocate.o := -mcmodel=medany $(call cc-option,-mno-relax)
 endif

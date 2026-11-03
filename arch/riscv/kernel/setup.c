@@ -65,6 +65,9 @@ static struct resource code_res = { .name = "Kernel code", };
 static struct resource data_res = { .name = "Kernel data", };
 static struct resource rodata_res = { .name = "Kernel rodata", };
 static struct resource bss_res = { .name = "Kernel bss", };
+#ifdef CONFIG_XIP_KERNEL
+static struct resource xip_res = { .name = "Kernel XIP image", };
+#endif
 #ifdef CONFIG_CRASH_DUMP
 static struct resource elfcorehdr_res = { .name = "ELF Core hdr", };
 #endif
@@ -114,7 +117,36 @@ static int __init add_kernel_resources(void)
 	bss_res.end = __pa_symbol(__bss_stop) - 1;
 	bss_res.flags = IORESOURCE_SYSTEM_RAM | IORESOURCE_BUSY;
 
+#ifdef CONFIG_XIP_KERNEL
+	/*
+	 * XIP text and rodata live in flash while data and bss live in RAM.
+	 * Register them as separate resources; one resource spanning both
+	 * address spaces would partially overlap System RAM and invalidate the
+	 * entire iomem resource tree.
+	 */
+	code_res.flags = IORESOURCE_MEM | IORESOURCE_BUSY;
+	rodata_res.flags = IORESOURCE_MEM | IORESOURCE_BUSY;
+
+	xip_res.start = code_res.start;
+	xip_res.end = rodata_res.end;
+	xip_res.flags = IORESOURCE_MEM | IORESOURCE_BUSY;
+
+	ret = add_resource(&iomem_resource, &xip_res);
+	if (ret < 0)
+		return ret;
+
+	ret = add_resource(&xip_res, &code_res);
+	if (ret < 0)
+		return ret;
+
+	ret = add_resource(&xip_res, &rodata_res);
+	if (ret < 0)
+		return ret;
+
+	kimage_res.start = data_res.start;
+#else
 	kimage_res.start = code_res.start;
+#endif
 	kimage_res.end = bss_res.end;
 	kimage_res.flags = IORESOURCE_SYSTEM_RAM | IORESOURCE_BUSY;
 
@@ -122,6 +154,7 @@ static int __init add_kernel_resources(void)
 	if (ret < 0)
 		return ret;
 
+#ifndef CONFIG_XIP_KERNEL
 	ret = add_resource(&kimage_res, &code_res);
 	if (ret < 0)
 		return ret;
@@ -129,6 +162,7 @@ static int __init add_kernel_resources(void)
 	ret = add_resource(&kimage_res, &rodata_res);
 	if (ret < 0)
 		return ret;
+#endif
 
 	ret = add_resource(&kimage_res, &data_res);
 	if (ret < 0)
