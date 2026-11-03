@@ -767,7 +767,7 @@ static uintptr_t __meminit best_map_size(phys_addr_t pa, uintptr_t va, phys_addr
 
 #ifdef CONFIG_XIP_KERNEL
 #define phys_ram_base  (*(phys_addr_t *)XIP_FIXUP(&phys_ram_base))
-extern char _xiprom[], _exiprom[], __data_loc;
+extern char _xiprom[], _exiprom[], __data_loc, __data_copy_end;
 
 /* called from head.S with MMU off */
 asmlinkage void __init __copy_data(void)
@@ -776,11 +776,14 @@ asmlinkage void __init __copy_data(void)
 	void *to = (void *)CONFIG_PHYS_RAM_BASE;
 	size_t data_sz = (size_t)((uintptr_t)(&__bss_start) -
 				   (uintptr_t)(&_sdata));
-	size_t bss_sz = (size_t)((uintptr_t)(&_end) -
+	size_t bss_sz = (size_t)((uintptr_t)(&__bss_stop) -
 				  (uintptr_t)(&__bss_start));
+	size_t tail_sz = (size_t)((uintptr_t)(&__data_copy_end) -
+				   (uintptr_t)(&__bss_stop));
 
 	memcpy(to, from, data_sz);
 	memset(to + data_sz, 0, bss_sz);
+	memcpy(to + data_sz + bss_sz, from + data_sz + bss_sz, tail_sz);
 }
 #endif
 

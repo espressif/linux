@@ -369,11 +369,13 @@ config RISCV_NONSTANDARD_CACHE_OPS
 config RISCV_ESP_CLIC_TRAP_QUIRK
 	bool
 	help
-	  CLIC-mode trap-handling quirks in entry.S for the Espressif
-	  ESP32-S31: 64-byte alignment of the trap vector (stvec.base[5:0]
-	  are hardware-forced to 0 in CLIC mode) and masking of the CLIC
-	  extension bits in scause. Selected by ESP_CLIC; no effect on other
-	  platforms.
+	  CLIC-mode trap handling for the Espressif ESP32-S31 in entry.S:
+	  64-byte alignment of the trap vector (stvec.base[5:0] are
+	  hardware-forced to 0 in CLIC mode), masking of the CLIC extension
+	  bits out of the scause the C handlers see, and saving the raw
+	  scause with the trap frame so its in-service interrupt level
+	  (SPIL) is restored by that frame's sret. Selected by ESP_CLIC; no
+	  effect on other platforms.
 
 config AS_HAS_INSN
 	def_bool $(as-instr,.insn 0x100000f)

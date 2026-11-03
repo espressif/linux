@@ -151,13 +151,11 @@ secondary_start_sbi:
 	la a3, .Lsecondary_park
 	csrw CSR_TVEC, a3
 
-	/* a0 contains the hartid & a1 contains boot data */
+	/* a0 contains the hartid & a1 contains boot data. */
 	li a2, SBI_HART_BOOT_TASK_PTR_OFFSET
-	XIP_FIXUP_OFFSET a2
 	add a2, a2, a1
 	REG_L tp, (a2)
 	li a3, SBI_HART_BOOT_STACK_PTR_OFFSET
-	XIP_FIXUP_OFFSET a3
 	add a3, a3, a1
 	REG_L sp, (a3)
 

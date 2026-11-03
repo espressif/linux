@@ -663,12 +663,9 @@ config ESP_CLIC
 	depends on RISCV
 	select IRQ_DOMAIN_HIERARCHY
 	select RISCV_ESP_CLIC_TRAP_QUIRK
+	select GENERIC_IRQ_EFFECTIVE_AFF_MASK if SMP
 	help
-	  Drive the S-mode view of the ESP32-S31's CLIC (0x10A00000)
-	  so Linux can take external peripheral interrupts. OpenSBI is
-	  responsible for delegating the CLIC external sources to S-mode
-	  at boot; this driver owns enable/mask/priority/trigger from
-	  there.
+	  Enable CLIC support for Espressif SOCs
 
 	  If unsure, say N.
 
@@ -677,12 +674,17 @@ config ESP_INTMTX
 	depends on ESP_CLIC
 	select IRQ_DOMAIN_HIERARCHY
 	help
-	  Drive the ESP32-S31 INTMTX, which routes peripheral source
-	  lines to CLIC slots. Sits between peripheral drivers and
-	  irq-esp-clic in the irq-domain hierarchy and allocates CLIC
-	  slots on demand.
+	  Enable support for Interrupt Matrix on Espressif SOCs.
 
 	  If unsure, say N.
+
+config ESP_IPI
+	bool "Espressif ESP32-S31 inter-processor interrupts"
+	depends on ESP_INTMTX && SMP
+	select GENERIC_IRQ_IPI_MUX
+	help
+	  Enabled support for inux IPIs on Espressif's "CPU interrupt from CPU"
+	  doorbells.
 
 config ACLINT_SSWI
 	bool "RISC-V ACLINT S-mode IPI Interrupt Controller"

@@ -124,8 +124,29 @@ extern unsigned long vmemmap_start_pfn;
 #define is_kernel_mapping(x)	\
 	((x) >= kernel_map.virt_addr && (x) < (kernel_map.virt_addr + kernel_map.size))
 
+#ifdef CONFIG_XIP_KERNEL
+/*
+ * Text and rodata execute from the flash window; only data onwards is
+ * linear-mapped RAM. On rv32 that window starts at PAGE_OFFSET, so without
+ * this test every text address would be taken for a linear-map address and
+ * translated with the data offset.
+ */
+static inline bool is_xip_kernel_mapping(unsigned long x)
+{
+	return x >= kernel_map.virt_addr &&
+	       x < kernel_map.virt_addr + kernel_map.xiprom_sz;
+}
+#else
+static inline bool is_xip_kernel_mapping(unsigned long x)
+{
+	return false;
+}
+#endif
+
 #define is_linear_mapping(x)	\
-	((x) >= PAGE_OFFSET && (!IS_ENABLED(CONFIG_64BIT) || (x) < PAGE_OFFSET + KERN_VIRT_SIZE))
+	((x) >= PAGE_OFFSET &&							\
+	 (!IS_ENABLED(CONFIG_64BIT) || (x) < PAGE_OFFSET + KERN_VIRT_SIZE) &&	\
+	 !is_xip_kernel_mapping(x))
 
 #ifndef CONFIG_DEBUG_VIRTUAL
 #define linear_mapping_pa_to_va(x)	((void *)((unsigned long)(x) + kernel_map.va_pa_offset))

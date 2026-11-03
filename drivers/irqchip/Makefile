@@ -111,6 +111,7 @@ obj-$(CONFIG_SIFIVE_PLIC)		+= irq-sifive-plic.o
 obj-$(CONFIG_STARFIVE_JH8100_INTC)	+= irq-starfive-jh8100-intc.o
 obj-$(CONFIG_ESP_CLIC)			+= irq-esp-clic.o
 obj-$(CONFIG_ESP_INTMTX)		+= irq-esp-intmtx.o
+obj-$(CONFIG_ESP_IPI)			+= irq-esp-ipi.o
 obj-$(CONFIG_ACLINT_SSWI)		+= irq-aclint-sswi.o
 obj-$(CONFIG_IMX_IRQSTEER)		+= irq-imx-irqsteer.o
 obj-$(CONFIG_IMX_INTMUX)		+= irq-imx-intmux.o

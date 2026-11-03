@@ -54,14 +54,7 @@ struct pt_regs {
 	/* a0 value before the syscall */
 	unsigned long orig_a0;
 #ifdef CONFIG_RISCV_ESP_CLIC_TRAP_QUIRK
-	/*
-	 * Raw scause (with the CLIC SPP/SPIE/SPIL fields) captured at trap
-	 * entry. ret_from_exception writes it back to the scause CSR (with
-	 * SPIL forced to 0 and the interrupt bit forced on) just before sret,
-	 * because the CLIC reloads the S in-service interrupt level from
-	 * scause.SPIL only for interrupt-type scause values — see the comment
-	 * in entry.S.
-	 */
+	/* scause as the hardware wrote it at trap entry */
 	unsigned long clic_scause;
 #endif
 };
