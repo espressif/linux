@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: (GPL-2.0 OR MIT)
 /*
- * Minimal ESP32-S31 device tree.
+ * ESP32-S31 SoC-level hardware description.
  *
- * U-Boot initializes PSRAM and maps the NOR flash XIP window before Linux
- * starts. OpenSBI owns the machine-mode CLIC bank and provides cache
- * maintenance through vendor SBI calls.
+ * Keep SoC-invariant resources here: CPUs, interrupt controllers, clocks,
+ * memory maps and on-chip peripheral nodes.
+ *
+ * Physical wiring, pin assignments and permanently fitted peripheral
+ * enablement belong in board .dts files; use-case- and test-specific changes
+ * belong in .dtso overlays.
  */
-
-/dts-v1/;
 
 #include <dt-bindings/clock/esp32s31.h>
 #include <dt-bindings/gpio/gpio.h>
@@ -19,14 +20,6 @@
 	compatible = "esp,esp32s31";
 	#address-cells = <1>;
 	#size-cells = <1>;
-	model = "Espressif ESP32-S31 (minimal)";
-
-	aliases {
-		ethernet0 = &emac;
-		i2c0 = &i2c0;
-		mmc0 = &sdmmc;
-		serial0 = &uart0;
-	};
 
 	xtal_clk: clock-xtal {
 		compatible = "fixed-clock";
@@ -140,7 +133,7 @@
 			current-speed = <115200>;
 			interrupt-parent = <&intmtx>;
 			interrupts = <9 IRQ_TYPE_LEVEL_HIGH>;
-			status = "okay";
+			status = "disabled";
 		};
 
 		/*
@@ -164,68 +157,7 @@
 			clock-names = "apb", "iomux";
 			resets = <&rst ESP_S31_RST_IOMUX>;
 
-			espfunc: espfunc {
-				/*
-				 * I2C Pins - SDA(GPIO51) and SCL(GPIO50) according to
-				 * ESP32S31 Core FunctionBoard v1.1 schematic.
-				 */
-				i2c0_pins: i2c0-pins {
-					pinmux =
-						<ESP_PINMUX(51, ESP_FUNC_S31_I2C0_SDA_ID)>,
-						<ESP_PINMUX(50, ESP_FUNC_S31_I2C0_SCL_ID)>;
-
-					input-enable;
-					bias-pull-up;
-					drive-strength = <5>;
-					drive-open-drain;
-				};
-
-				emac_pins: emac-pins {
-					pinmux =
-						/* MDC, MDIO */
-						<ESP_PINMUX(5, ESP_FUNC_S31_GMII_MDC_ID)>,
-						<ESP_PINMUX(6, ESP_FUNC_S31_GMII_MDIO_ID)>,
-						/* TXD0-3, TX_CTL, TX_CLK */
-						<ESP_PINMUX(8, ESP_FUNC_S31_GMAC_ID)>,
-						<ESP_PINMUX(9, ESP_FUNC_S31_GMAC_ID)>,
-						<ESP_PINMUX(10, ESP_FUNC_S31_GMAC_ID)>,
-						<ESP_PINMUX(11, ESP_FUNC_S31_GMAC_ID)>,
-						<ESP_PINMUX(12, ESP_FUNC_S31_GMAC_ID)>,
-						<ESP_PINMUX(13, ESP_FUNC_S31_GMAC_ID)>,
-						/* RX_CLK, RX_CTL, RXD3-0 */
-						<ESP_PINMUX(14, ESP_FUNC_S31_GMAC_ID)>,
-						<ESP_PINMUX(15, ESP_FUNC_S31_GMAC_ID)>,
-						<ESP_PINMUX(16, ESP_FUNC_S31_GMAC_ID)>,
-						<ESP_PINMUX(17, ESP_FUNC_S31_GMAC_ID)>,
-						<ESP_PINMUX(18, ESP_FUNC_S31_GMAC_ID)>,
-						<ESP_PINMUX(19, ESP_FUNC_S31_GMAC_ID)>;
-
-					input-enable;
-					bias-disable;
-					drive-strength = <20>;
-				};
-
-				sdmmc_data_pins: sdmmc-data-pins {
-					pinmux =
-						<ESP_PINMUX(20, ESP_FUNC_S31_SDMMC_ID)>,
-						<ESP_PINMUX(21, ESP_FUNC_S31_SDMMC_ID)>,
-						<ESP_PINMUX(22, ESP_FUNC_S31_SDMMC_ID)>,
-						<ESP_PINMUX(23, ESP_FUNC_S31_SDMMC_ID)>,
-						<ESP_PINMUX(25, ESP_FUNC_S31_SDMMC_ID)>;
-
-					input-enable;
-					bias-pull-up;
-					drive-strength = <20>;
-				};
-
-				sdmmc_clk_pin: sdmmc-clk-pin {
-					pinmux =
-						<ESP_PINMUX(24, ESP_FUNC_S31_SDMMC_ID)>;
-
-					bias-disable;
-					drive-strength = <20>;
-				};
-			};
+			espfunc: espfunc {};
 		};
 
 		gpio: gpio@20583000 {
@@ -269,8 +201,7 @@
 			max-frequency = <25000000>;
 			broken-cd;
 			disable-wp;
-			pinctrl-names = "default";
-			pinctrl-0 = <&sdmmc_data_pins>, <&sdmmc_clk_pin>;
+			status = "disabled";
 		};
 
 		/*
@@ -347,9 +278,7 @@
 			assigned-clocks = <&clk ESP_S31_CLK_I2C0>;
 			assigned-clock-parents = <&xtal_clk>;
 			resets = <&rst ESP_S31_RST_I2C0>;
-			pinctrl-names = "default";
-			pinctrl-0 = <&i2c0_pins>;
-			clock-frequency = <100000>;
+			status = "disabled";
 		};
 
 		/*
@@ -382,27 +311,7 @@
 			snps,rxpbl = <8>;
 			snps,no-pbl-x8;
 			snps,mixed-burst;
-			phy-mode = "rgmii-id";
-			phy-handle = <&phy0>;
-			pinctrl-names = "default";
-			pinctrl-0 = <&emac_pins>;
-
-			mdio {
-				compatible = "snps,dwmac-mdio";
-				#address-cells = <1>;
-				#size-cells = <0>;
-
-				/*
-				 * Motorcomm YT8531 (IDR1 0x4f51, IDR2 0xe91b).
-				 */
-				phy0: ethernet-phy@0 {
-					compatible = "ethernet-phy-id4f51.e91b";
-					reg = <0>;
-					reset-gpios = <&gpio 7 GPIO_ACTIVE_LOW>;
-					reset-assert-us = <10000>;
-					reset-deassert-us = <500000>;
-				};
-			};
+			status = "disabled";
 		};
 
 		pcnt0: counter@20389000 {
@@ -466,15 +375,7 @@
 			phy-names = "usb2-phy";
 			dr_mode = "host";
 			dma-noncoherent;
-		};
-
-		rootflash: flash@40b00000 {
-			compatible = "mtd-rom";
-			reg = <0x40b00000 0x00400000>;
-			bank-width = <4>;
-			linux,mtd-name = "rootfs";
-			#address-cells = <1>;
-			#size-cells = <1>;
+			status = "disabled";
 		};
 	};
 };

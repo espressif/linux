@@ -1,0 +1,126 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+/*
+ * Espressif ESP32-S31 Function Core Board 1 board-level description.
+ *
+ * Keep physical wiring, pin assignments, model, aliases and permanently
+ * fitted peripheral enablement here.
+ *
+ * SoC-invariant resources belong in esp32s31.dtsi; use-case- and
+ * test-specific changes belong in .dtso overlays.
+ */
+
+/dts-v1/;
+
+#include "esp32s31.dtsi"
+
+/ {
+	model = "Espressif ESP32-S31-Function-CoreBoard-1";
+
+	aliases {
+		ethernet0 = &emac;
+		i2c0 = &i2c0;
+		mmc0 = &sdmmc;
+		serial0 = &uart0;
+	};
+};
+
+&espfunc {
+	/* I2C0: SDA on GPIO51 and SCL on GPIO50. */
+	i2c0_pins: i2c0-pins {
+		pinmux = <ESP_PINMUX(51, ESP_FUNC_S31_I2C0_SDA_ID)>,
+			 <ESP_PINMUX(50, ESP_FUNC_S31_I2C0_SCL_ID)>;
+
+		input-enable;
+		bias-pull-up;
+		drive-strength = <5>;
+		drive-open-drain;
+	};
+
+	emac_pins: emac-pins {
+		pinmux =
+			/* MDC, MDIO */
+			<ESP_PINMUX(5, ESP_FUNC_S31_GMII_MDC_ID)>,
+			<ESP_PINMUX(6, ESP_FUNC_S31_GMII_MDIO_ID)>,
+			/* TXD0-3, TX_CTL, TX_CLK */
+			<ESP_PINMUX(8, ESP_FUNC_S31_GMAC_ID)>,
+			<ESP_PINMUX(9, ESP_FUNC_S31_GMAC_ID)>,
+			<ESP_PINMUX(10, ESP_FUNC_S31_GMAC_ID)>,
+			<ESP_PINMUX(11, ESP_FUNC_S31_GMAC_ID)>,
+			<ESP_PINMUX(12, ESP_FUNC_S31_GMAC_ID)>,
+			<ESP_PINMUX(13, ESP_FUNC_S31_GMAC_ID)>,
+			/* RX_CLK, RX_CTL, RXD3-0 */
+			<ESP_PINMUX(14, ESP_FUNC_S31_GMAC_ID)>,
+			<ESP_PINMUX(15, ESP_FUNC_S31_GMAC_ID)>,
+			<ESP_PINMUX(16, ESP_FUNC_S31_GMAC_ID)>,
+			<ESP_PINMUX(17, ESP_FUNC_S31_GMAC_ID)>,
+			<ESP_PINMUX(18, ESP_FUNC_S31_GMAC_ID)>,
+			<ESP_PINMUX(19, ESP_FUNC_S31_GMAC_ID)>;
+
+		input-enable;
+		bias-disable;
+		drive-strength = <20>;
+	};
+
+	sdmmc_data_pins: sdmmc-data-pins {
+		pinmux = <ESP_PINMUX(20, ESP_FUNC_S31_SDMMC_ID)>,
+			 <ESP_PINMUX(21, ESP_FUNC_S31_SDMMC_ID)>,
+			 <ESP_PINMUX(22, ESP_FUNC_S31_SDMMC_ID)>,
+			 <ESP_PINMUX(23, ESP_FUNC_S31_SDMMC_ID)>,
+			 <ESP_PINMUX(25, ESP_FUNC_S31_SDMMC_ID)>;
+
+		input-enable;
+		bias-pull-up;
+		drive-strength = <20>;
+	};
+
+	sdmmc_clk_pin: sdmmc-clk-pin {
+		pinmux = <ESP_PINMUX(24, ESP_FUNC_S31_SDMMC_ID)>;
+
+		bias-disable;
+		drive-strength = <20>;
+	};
+};
+
+&i2c0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c0_pins>;
+	clock-frequency = <100000>;
+	status = "okay";
+};
+
+&uart0 {
+	status = "okay";
+};
+
+&sdmmc {
+	pinctrl-names = "default";
+	pinctrl-0 = <&sdmmc_data_pins>, <&sdmmc_clk_pin>;
+	status = "okay";
+};
+
+&emac {
+	phy-mode = "rgmii-id";
+	phy-handle = <&phy0>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&emac_pins>;
+	status = "okay";
+
+	mdio {
+		compatible = "snps,dwmac-mdio";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		/* Motorcomm YT8531 (IDR1 0x4f51, IDR2 0xe91b). */
+		phy0: ethernet-phy@0 {
+			compatible = "ethernet-phy-id4f51.e91b";
+			reg = <0>;
+			reset-gpios = <&gpio 7 GPIO_ACTIVE_LOW>;
+			reset-assert-us = <10000>;
+			reset-deassert-us = <500000>;
+		};
+	};
+};
+
+&usb {
+	status = "okay";
+};

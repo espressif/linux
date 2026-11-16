@@ -1,0 +1,26 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+/*
+ * Generic CI test overlay for ESP32-S31 Function Core Board 1.
+ *
+ * Keep test-specific peripheral enablement and configuration here.
+ *
+ * SoC-invariant resources belong in esp32s31.dtsi; physical wiring and
+ * permanently fitted peripheral enablement belong in the board .dts file.
+ */
+
+/dts-v1/;
+/plugin/;
+
+&{/soc} {
+	#address-cells = <1>;
+	#size-cells = <1>;
+
+	rootflash: flash@40b00000 {
+		compatible = "mtd-rom";
+		reg = <0x40b00000 0x00400000>;
+		bank-width = <4>;
+		linux,mtd-name = "rootfs";
+		#address-cells = <1>;
+		#size-cells = <1>;
+	};
+};
