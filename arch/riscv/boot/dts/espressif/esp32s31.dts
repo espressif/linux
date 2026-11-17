@@ -1,0 +1,26 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+/*
+ * Legacy ESP32-S31 DTB name.
+ *
+ * Keep this compatibility wrapper until all consumers select
+ * esp32s31-function-core-board-1.dtb.
+ */
+
+#include "esp32s31-function-core-board-1.dts"
+
+/ {
+	chosen {
+		bootargs = "earlycon=sbi console=ttyS0 root=mtd:rootfs rootfstype=cramfs ro";
+	};
+};
+
+&{/soc} {
+	rootflash: flash@40b00000 {
+		compatible = "mtd-rom";
+		reg = <0x40b00000 0x00400000>;
+		bank-width = <4>;
+		linux,mtd-name = "rootfs";
+		#address-cells = <1>;
+		#size-cells = <1>;
+	};
+};
