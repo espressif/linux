@@ -1,0 +1,47 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+/*
+ * Espressif ESP32-S31-Korvo-1 board-level description.
+ *
+ * Keep physical wiring, pin assignments, model, aliases and permanently
+ * fitted peripheral enablement here.
+ *
+ * SoC-invariant resources belong in esp32s31.dtsi; use-case- and
+ * test-specific changes belong in .dtso overlays.
+ */
+
+/dts-v1/;
+
+#include "esp32s31.dtsi"
+
+/ {
+	model = "Espressif ESP32-S31-Korvo-1";
+
+	aliases {
+		i2c0 = &i2c0;
+		serial0 = &uart0;
+	};
+};
+
+&espfunc {
+	/* I2C0: SDA on GPIO0 and SCL on GPIO1. */
+	i2c0_pins: i2c0-pins {
+		pinmux = <ESP_PINMUX(0, ESP_FUNC_S31_I2C0_SDA_ID)>,
+			 <ESP_PINMUX(1, ESP_FUNC_S31_I2C0_SCL_ID)>;
+
+		input-enable;
+		bias-pull-up;
+		drive-strength = <20>;
+		drive-open-drain;
+	};
+};
+
+&i2c0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c0_pins>;
+	clock-frequency = <100000>;
+	status = "okay";
+};
+
+&uart0 {
+	status = "okay";
+};
