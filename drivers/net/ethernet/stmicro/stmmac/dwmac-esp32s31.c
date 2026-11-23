@@ -194,6 +194,21 @@ static int esp32s31_dwmac_probe(struct platform_device *pdev)
 	plat_dat->clk_tx_i = dwmac->clk_ref;
 	plat_dat->set_clk_tx_rate = stmmac_set_clk_tx_rate;
 
+	/*
+	 * The reference divides down from an MPLL the bootloader chooses, and
+	 * not every MPLL rate yields the 125 MHz 1000 Mbit/s needs. Without
+	 * this cap clk_set_rate() would settle for the closest rate below it
+	 * and a gigabit link would come up with no working datapath.
+	 */
+	if (clk_round_rate(dwmac->clk_ref, rgmii_clock(SPEED_1000)) !=
+	    rgmii_clock(SPEED_1000) &&
+	    (!plat_dat->max_speed || plat_dat->max_speed > SPEED_100)) {
+		dev_info(&pdev->dev,
+			 "no 125 MHz reference from %lu Hz, limiting to 100 Mbit/s\n",
+			 clk_get_rate(clk_get_parent(dwmac->clk_ref)));
+		plat_dat->max_speed = SPEED_100;
+	}
+
 	rc = devm_stmmac_pltfr_probe(pdev, plat_dat, &stmmac_res);
 	if (rc)
 		return rc;
