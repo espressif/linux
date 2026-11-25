@@ -1,0 +1,35 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/leds/esp,esp32s31-rmt-ws2812.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Single WS2812 RGB LED on ESP32-S31 RMT
+
+maintainers:
+  - Glauber Franco <gnfranco@gmail.com>
+
+description: |
+  An addressable RGB LED using one exclusive RMT TX channel. The pinctrl
+  state routes the selected channel's output to the board's data pin.
+
+properties:
+  compatible:
+    const: esp,esp32s31-rmt-ws2812
+  reg:
+    items:
+      - minimum: 0
+        maximum: 3
+  pinctrl-names:
+    items:
+      - const: default
+  pinctrl-0: true
+
+required:
+  - compatible
+  - reg
+  - pinctrl-names
+  - pinctrl-0
+
+additionalProperties: false
+...
