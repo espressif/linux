@@ -204,6 +204,26 @@
 			status = "disabled";
 		};
 
+		hp_sys: syscon@20586000 {
+			compatible = "esp,esp32s31-hp-system", "syscon";
+			reg = <0x20586000 0x400>;
+		};
+
+		rmt: rmt@20355000 {
+			compatible = "esp,esp32s31-rmt";
+			reg = <0x20355000 0x1000>;
+			esp,hp-system = <&hp_sys>;
+			clocks = <&clk ESP_S31_CLK_RMT_APB>,
+				 <&clk ESP_S31_CLK_RMT>;
+			clock-names = "apb", "rmt";
+			resets = <&rst ESP_S31_RST_RMT>;
+			interrupt-parent = <&intmtx>;
+			interrupts = <22 IRQ_TYPE_LEVEL_HIGH>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
 		/*
 		 * HP_SYS_CLKRST. Peripheral clock gates and resets that sit
 		 * outside the peripherals' own register windows.
