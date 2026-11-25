@@ -21,6 +21,7 @@
 #include <dt-bindings/clock/esp32s31.h>
 
 /* Peripheral control registers in HP_SYS_CLKRST */
+#define ESP32S31_HP_CLKRST_RMT_CTRL0	0x0bc
 #define ESP32S31_HP_CLKRST_EMAC_CTRL0	0x0c8
 #define ESP32S31_HP_CLKRST_I2C0_CTRL0	0x0dc
 #define ESP32S31_HP_CLKRST_I2C1_CTRL0	0x0e0
@@ -117,6 +118,7 @@ struct esp_clk_desc {
 	u8 map_idx;
 	u32 reg;
 	u32 gate;
+	u32 prepare_clear;
 	u32 div;
 	u32 frac;
 	u32 mux;
@@ -280,7 +282,8 @@ static int esp_clk_prepare(struct clk_hw *hw)
 	struct esp_clk *esp_clk = to_esp_clk(hw);
 
 	return regmap_update_bits(esp_clk->map, esp_clk->desc->reg,
-				  esp_clk->desc->gate, esp_clk->desc->gate);
+				  esp_clk->desc->gate | esp_clk->desc->prepare_clear,
+				  esp_clk->desc->gate);
 }
 
 static void esp_clk_unprepare(struct clk_hw *hw)
@@ -423,6 +426,8 @@ static const u16 esp32s31_i2c_parent_ids[] = {
 	ESP_S31_CLK_RC_FAST,
 };
 
+static const char * const esp32s31_rmt_parents[] = { "xtal" };
+
 static const struct esp_clk_desc esp32s31_clk_descs[] = {
 	[ESP_S31_CLK_IOMUX_APB] = {
 		.name = "iomux_apb",
@@ -538,6 +543,22 @@ static const struct esp_clk_desc esp32s31_clk_descs[] = {
 		.gate = ESP32S31_SDMMC_SYS_CLK_EN,
 		.parent_ids = esp32s31_apb_parent_ids,
 		.num_parents = ARRAY_SIZE(esp32s31_apb_parent_ids),
+	},
+	[ESP_S31_CLK_RMT_APB] = {
+		.name = "rmt_apb",
+		.reg = ESP32S31_HP_CLKRST_RMT_CTRL0,
+		.gate = BIT(0),
+		.parent_ids = esp32s31_apb_parent_ids,
+		.num_parents = ARRAY_SIZE(esp32s31_apb_parent_ids),
+	},
+	[ESP_S31_CLK_RMT] = {
+		.name = "rmt",
+		.reg = ESP32S31_HP_CLKRST_RMT_CTRL0,
+		.gate = BIT(5),
+		/* Model only XTAL / 1 until other sources are validated. */
+		.prepare_clear = GENMASK(4, 3) | GENMASK(29, 6),
+		.parents = esp32s31_rmt_parents,
+		.num_parents = ARRAY_SIZE(esp32s31_rmt_parents),
 	},
 };
 
@@ -735,6 +756,9 @@ static int esp_clk_probe(struct platform_device *pdev)
 		struct clk_parent_data parent_data[ESP32S31_CLK_MAX_PARENTS] = { };
 		struct clk_init_data init = { };
 		struct esp_clk *esp_clk;
+
+		if (!desc->name)
+			continue;
 
 		esp_clk = devm_kzalloc(dev, sizeof(*esp_clk), GFP_KERNEL);
 		if (!esp_clk)

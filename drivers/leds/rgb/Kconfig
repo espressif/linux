@@ -2,6 +2,15 @@
 
 if LEDS_CLASS_MULTICOLOR
 
+config LEDS_ESP32S31_RMT
+	bool "Experimental ESP32-S31 RMT WS2812 LED"
+	depends on ESP32S31_RMT
+	help
+	  Enable a single WS2812 addressable RGB LED connected to an
+	  ESP32-S31 RMT transmit channel. The LED exposes the multicolor
+	  LED class interface. This experimental driver does not support
+	  strips of multiple LEDs.
+
 config LEDS_GROUP_MULTICOLOR
 	tristate "LEDs group multi-color support"
 	depends on OF

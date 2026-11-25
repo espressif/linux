@@ -32,4 +32,13 @@ source "drivers/soc/versatile/Kconfig"
 source "drivers/soc/vt8500/Kconfig"
 source "drivers/soc/xilinx/Kconfig"
 
+config ESP32S31_RMT
+	bool "ESP32-S31 RMT TX controller (experimental)"
+	depends on ARCH_ESPRESSIF && OF && MFD_SYSCON && RESET_CONTROLLER
+	help
+	  Enable the ESP32-S31 Remote Control Transceiver transmit controller.
+	  It provides four exclusively allocated channels with one hardware
+	  memory block each and interrupt-driven completion.
+	  Client drivers can use it to generate timed digital pulses.
+
 endmenu

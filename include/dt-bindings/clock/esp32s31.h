@@ -55,6 +55,8 @@
 /* High-performance APB clock derived from the system clock */
 #define ESP_S31_CLK_APB		21
 
-#define ESP_S31_CLK_NUM		22
+#define ESP_S31_CLK_RMT_APB	22
+#define ESP_S31_CLK_RMT		23
+#define ESP_S31_CLK_NUM		24
 
 #endif /* ESP32S31_CLOCK_H */

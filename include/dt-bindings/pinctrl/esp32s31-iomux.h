@@ -594,4 +594,9 @@
 /* SDMMC slot 0 reaches GPIO20-25 through the CNNT dedicated pad path. */
 #define ESP_FUNC_S31_SDMMC_ID				39
 
+#define ESP_FUNC_S31_RMT_TX0_ID			40
+#define ESP_FUNC_S31_RMT_TX1_ID			41
+#define ESP_FUNC_S31_RMT_TX2_ID			42
+#define ESP_FUNC_S31_RMT_TX3_ID			43
+
 #endif /* ESP32S31_IOMUX_H */

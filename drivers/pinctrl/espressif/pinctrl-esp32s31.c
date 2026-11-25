@@ -242,6 +242,10 @@ static const struct esp_pin_function esp32s31_functions[] = {
 	[ESP_FUNC_S31_SDMMC_ID] = { ESP_FUNC_NONE, ESP_FUNC_NONE,
 				    ESP_FUNC_NONE,
 				    ESP_OWNER(S31_OWNER_CNNT_SDIO) },
+	[ESP_FUNC_S31_RMT_TX0_ID] = { GPIO_FUNC_GPIO, ESP_FUNC_NONE, RMT_SIG_OUT0_IDX },
+	[ESP_FUNC_S31_RMT_TX1_ID] = { GPIO_FUNC_GPIO, ESP_FUNC_NONE, RMT_SIG_OUT1_IDX },
+	[ESP_FUNC_S31_RMT_TX2_ID] = { GPIO_FUNC_GPIO, ESP_FUNC_NONE, RMT_SIG_OUT2_IDX },
+	[ESP_FUNC_S31_RMT_TX3_ID] = { GPIO_FUNC_GPIO, ESP_FUNC_NONE, RMT_SIG_OUT3_IDX },
 };
 
 static int esp_s31_matrix_set_in(struct esp_pinctrl *epctl, u32 gpio, u32 signal)

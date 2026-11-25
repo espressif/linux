@@ -1,0 +1,58 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/soc/espressif/esp,esp32s31-rmt.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Espressif ESP32-S31 RMT transmit controller
+
+maintainers:
+  - Glauber Franco <gnfranco@gmail.com>
+
+description: |
+  The RMT controller generates timed digital symbols. This experimental
+  binding exposes four transmit channels with one 48-word block per channel.
+  Each child consumes one channel, specified by its reg property.
+
+properties:
+  compatible:
+    const: esp,esp32s31-rmt
+  reg:
+    maxItems: 1
+  interrupts:
+    maxItems: 1
+  clocks:
+    items:
+      - description: APB interface clock
+      - description: RMT symbol clock
+  clock-names:
+    items:
+      - const: apb
+      - const: rmt
+  resets:
+    maxItems: 1
+  esp,hp-system:
+    $ref: /schemas/types.yaml#/definitions/phandle
+    description: HP system syscon controlling RMT memory power
+  '#address-cells':
+    const: 1
+  '#size-cells':
+    const: 0
+
+patternProperties:
+  '^led@[0-3]$':
+    $ref: /schemas/leds/esp,esp32s31-rmt-ws2812.yaml#
+
+required:
+  - compatible
+  - reg
+  - interrupts
+  - clocks
+  - clock-names
+  - resets
+  - esp,hp-system
+  - '#address-cells'
+  - '#size-cells'
+
+additionalProperties: false
+...
