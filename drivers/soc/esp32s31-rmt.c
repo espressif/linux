@@ -102,9 +102,12 @@ static void esp_rmt_release(void *data)
 {
 	struct esp_rmt_channel *ch = data;
 
+	/* The client must stop initiating TX before releasing the channel. */
+	mutex_lock(&ch->tx_lock);
 	mutex_lock(&ch->rmt->claim_lock);
 	ch->claimed = false;
 	mutex_unlock(&ch->rmt->claim_lock);
+	mutex_unlock(&ch->tx_lock);
 }
 
 struct esp_rmt_channel *devm_esp_rmt_tx_get(struct device *dev, u32 channel)
@@ -179,11 +182,10 @@ int esp_rmt_tx(struct esp_rmt_channel *ch, unsigned long tick_hz,
 	writel(conf | RMT_UPDATE, base + RMT_CONF(id));
 	writel(conf | RMT_TX_START, base + RMT_CONF(id));
 	spin_unlock_irqrestore(&rmt->irq_lock, flags);
-	if (!wait_for_completion_timeout(&ch->done, timeout))
-		ret = -ETIMEDOUT;
-	else
-		ret = ch->result;
+	wait_for_completion_timeout(&ch->done, timeout);
 	spin_lock_irqsave(&rmt->irq_lock, flags);
+	/* Serialize with an IRQ arriving at the timeout boundary. */
+	ret = ch->active ? -ETIMEDOUT : ch->result;
 	ch->active = false;
 	writel(readl(base + RMT_INT_EN) & ~mask, base + RMT_INT_EN);
 	if (ret) {
@@ -204,6 +206,13 @@ static void esp_rmt_restore(void *data)
 	struct esp_rmt *rmt = data;
 
 	regmap_update_bits(rmt->hp, RMT_MEM_LP, RMT_LP_MASK, rmt->old_lp);
+}
+
+static void esp_rmt_assert_reset(void *data)
+{
+	struct reset_control *rst = data;
+
+	reset_control_assert(rst);
 }
 
 static int esp_rmt_probe(struct platform_device *pdev)
@@ -246,6 +255,9 @@ static int esp_rmt_probe(struct platform_device *pdev)
 	ret = reset_control_deassert(rst);
 	if (ret)
 		return ret;
+	ret = devm_add_action_or_reset(dev, esp_rmt_assert_reset, rst);
+	if (ret)
+		return ret;
 	rmt->hp = syscon_regmap_lookup_by_phandle(dev->of_node, "esp,hp-system");
 	if (IS_ERR(rmt->hp))
 		return PTR_ERR(rmt->hp);
@@ -270,8 +282,11 @@ static int esp_rmt_probe(struct platform_device *pdev)
 		return dev_err_probe(dev, ret, "RMT IRQ\n");
 	platform_set_drvdata(pdev, rmt);
 	ret = devm_of_platform_populate(dev);
-	if (ret)
+	if (ret) {
+		of_platform_depopulate(dev);
+		platform_set_drvdata(pdev, NULL);
 		return ret;
+	}
 	dev_info(dev, "RMT TX: %u channels, IRQ %d, clock %lu Hz\n",
 		 RMT_CHANNELS, rmt->irq, clk_get_rate(rmt->clk));
 	return 0;

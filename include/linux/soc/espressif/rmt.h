@@ -11,6 +11,7 @@ struct esp_rmt_channel;
 #define ESP_RMT_TX_MAX_SYMBOLS 47
 
 struct esp_rmt_channel *devm_esp_rmt_tx_get(struct device *dev, u32 channel);
+/* Sleepable synchronous TX. Consumers must quiesce before devres release. */
 int esp_rmt_tx(struct esp_rmt_channel *chan, unsigned long tick_hz,
 	       const u32 *symbols, size_t count);
 
