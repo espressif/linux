@@ -292,7 +292,7 @@ static int ctucan_set_secondary_sample_point(struct net_device *ndev)
 	struct ctucan_priv *priv = netdev_priv(ndev);
 	struct can_bittiming *dbt = &priv->can.fd.data_bittiming;
 	int ssp_offset = 0;
-	u32 ssp_cfg = 0; /* No SSP by default */
+	u32 ssp_cfg = FIELD_PREP(REG_TRV_DELAY_SSP_SRC, 0x1); /* No SSP */
 
 	if (CTU_CAN_FD_ENABLED(priv)) {
 		netdev_err(ndev, "BUG! Cannot set SSP - CAN is enabled\n");
@@ -310,7 +310,7 @@ static int ctucan_set_secondary_sample_point(struct net_device *ndev)
 		}
 
 		ssp_cfg = FIELD_PREP(REG_TRV_DELAY_SSP_OFFSET, ssp_offset);
-		ssp_cfg |= FIELD_PREP(REG_TRV_DELAY_SSP_SRC, 0x1);
+		ssp_cfg |= FIELD_PREP(REG_TRV_DELAY_SSP_SRC, 0x0);
 	}
 
 	ctucan_write32(priv, CTUCANFD_TRV_DELAY, ssp_cfg);
