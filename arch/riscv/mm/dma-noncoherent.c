@@ -8,6 +8,7 @@
 #include <linux/dma-direct.h>
 #include <linux/dma-map-ops.h>
 #include <linux/mm.h>
+#include <linux/of.h>
 #include <asm/cacheflush.h>
 #include <asm/dma-noncoherent.h>
 
@@ -152,6 +153,18 @@ void riscv_noncoherent_supported(void)
 
 void __init riscv_set_dma_cache_alignment(void)
 {
+	/*
+	 * The S31 registers its vendor cache operations at arch_initcall,
+	 * after this early alignment decision and slab initialization.
+	 * Preserve the noncoherent DMA alignment until that probe runs.
+	 */
+	if (IS_ENABLED(CONFIG_ESP32S31_CACHE) &&
+	    of_machine_is_compatible("esp,esp32s31")) {
+		pr_info("ESP32-S31: retaining %d-byte DMA cache alignment\n",
+			dma_cache_alignment);
+		return;
+	}
+
 	if (!noncoherent_supported)
 		dma_cache_alignment = 1;
 }
