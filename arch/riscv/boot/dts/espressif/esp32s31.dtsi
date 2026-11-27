@@ -196,11 +196,6 @@
 			esp,cnnt-sys = <&cnnt_sys>;
 			dma-noncoherent;
 			fifo-depth = <512>;
-			bus-width = <4>;
-			/* SD Default Speed mode supports up to 25 MHz. */
-			max-frequency = <25000000>;
-			broken-cd;
-			disable-wp;
 			status = "disabled";
 		};
 
